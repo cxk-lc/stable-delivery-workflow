@@ -42,11 +42,22 @@ stable-delivery-workflow/
 
 ### 方式一：安装为技能
 
-将本目录（或 Release 附件中的 `stable-delivery-workflow.zip` 解压后）放入技能目录，例如 WorkBuddy：
+将本目录（或 Release 附件中的 `stable-delivery-workflow.zip` 解压后）放入目标软件的**技能目录**即可。技能遵循开放的 Agent Skills 规范（Anthropic 开源，已被主流工具广泛支持），各软件的目录约定如下：
 
-```
-~/.workbuddy/skills/stable-delivery-workflow/
-```
+| 软件 | 用户级目录（所有项目生效） | 项目级目录（仅该项目生效） |
+|---|---|---|
+| **WorkBuddy** | `~/.workbuddy/skills/stable-delivery-workflow/` | `<项目>/.workbuddy/skills/stable-delivery-workflow/` |
+| **ChatGPT / Codex**（OpenAI） | `~/.agents/skills/stable-delivery-workflow/` | `<项目>/.agents/skills/stable-delivery-workflow/`（或 `.codex/skills/`） |
+| **DeepSeek Harness**（DSH） | `~/.dsh/skills/stable-delivery-workflow/` | `<项目>/.dsh/skills/stable-delivery-workflow/`（或 `.agents/skills/`） |
+| **Claude Code** | `~/.claude/skills/stable-delivery-workflow/` | `<项目>/.claude/skills/stable-delivery-workflow/` |
+| **Cursor** | `~/.cursor/skills/stable-delivery-workflow/` | `<项目>/.cursor/skills/stable-delivery-workflow/` |
+| **Gemini CLI** | `~/.gemini/skills/stable-delivery-workflow/` | `<项目>/.gemini/skills/stable-delivery-workflow/` |
+
+> - `~/.agents/skills/` 是跨工具通用目录（Codex、Cursor、DSH、Gemini CLI 等均可识别）；多个工具共用一套技能时可只维护一份，或用软链接分发。
+> - Windows 下 `~` 即 `C:\Users\<用户名>`；项目级目录相对于项目根目录。
+> - ChatGPT 网页版可在应用内 Skills 面板 / 插件市场安装；上表本地目录适用于 Codex 与 ChatGPT 桌面版。
+> - 安装后需**新开会话或重启软件**才会被识别；Cursor 还要求 SKILL.md 中的 name 与文件夹名完全一致。
+> - Kimi、GLM 等其他支持 Agent Skills 的工具，按其官方文档将本目录放入对应的 skills 路径即可（各软件版本迭代可能调整路径，以官方文档为准）。
 
 之后在对话中提到"用编程工具启动新项目""为新项目搭建 Git + AGENTS.md 环境""AI 产出不符合预期"等场景时，技能会自动生效。
 
