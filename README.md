@@ -26,13 +26,14 @@
 stable-delivery-workflow/
 ├── SKILL.md                         # 技能主文件：五阶段工作流与执行指令
 ├── scripts/
-│   └── init_project.py              # 项目初始化脚本（目录 + Git + AGENTS.md + docs 骨架 + 首次提交）
+│   ├── init_project.py              # 项目初始化脚本（目录 + Git + AGENTS.md + docs 三份骨架 + 首次提交）
+│   └── tests/                       # 脚本回归测试（v1.1.1 起：T1/T2 最小用例）
 ├── references/
 │   ├── methodology.md               # 完整方法论：阶段详解 / 通用原则 / 风险全表
 │   ├── prompt-templates.md          # 各阶段提示词模板（C-1 ~ C-7，可直接粘贴给编程代理）
 │   └── risk-playbook.md             # 风险诊断手册：症状 → 根因 → 动作
-└── assets/
-    ├── AGENTS.md.template           # 项目值班手册模板（交付硬规则）
+└── assets/                          # 模板唯一权威源
+    ├── AGENTS.template.md           # 项目值班手册模板（交付硬规则）
     ├── product-design-template.md   # 产品设计文档模板
     ├── tech-design-template.md      # 技术方案文档模板
     └── acceptance-checklist.md      # 人工验收清单模板
@@ -69,7 +70,7 @@ stable-delivery-workflow/
 python scripts/init_project.py ./my-app --name "我的应用"
 ```
 
-脚本自动完成：创建目录 → `git init`（main 分支）→ 写入 AGENTS.md（交付硬规则）→ 创建 docs 骨架 → 写入 .gitignore → 首次提交。
+脚本自动完成：创建目录 → `git init`（main 分支）→ 写入 AGENTS.md（交付硬规则）→ 创建 docs/ 三份骨架（产品设计 / 技术方案 / 验收清单）→ 写入 .gitignore → 首次提交。
 
 常用参数：
 
@@ -97,7 +98,7 @@ python scripts/init_project.py ./my-app --name "我的应用"
 
 ## 版本
 
-当前版本：**v1.1.0**
+当前版本：**v1.1.1**
 
 ## 来源与致谢
 

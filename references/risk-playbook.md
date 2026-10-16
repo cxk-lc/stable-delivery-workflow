@@ -23,7 +23,7 @@
 当诊断出项目缺少基础护栏时，按顺序补救（不必推倒重来）：
 
 1. **补版本管理**：`git init` + 提交当前可用版本作为基线 → 确立"每改动一 commit"规则；
-2. **补 AGENTS.md**：写入交付硬规则（commit + 测试 + commit 信息语种），补充运行 / 测试命令（模板：assets/AGENTS.md.template）；
+2. **补 AGENTS.md**：写入交付硬规则（commit + 测试 + commit 信息语种），补充运行 / 测试命令（模板：assets/AGENTS.template.md）；
 3. **补自测能力**：为 AI 工具配置运行、页面检查、测试能力，让 AI 在交付前先自检。
 
 > 补救也可通过 `python scripts/init_project.py <项目目录>` 完成——脚本对已有目录与已有仓库是安全的（不覆盖已存在文件、不重复 init）。

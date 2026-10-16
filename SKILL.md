@@ -36,11 +36,11 @@ agent_created: true
 python scripts/init_project.py <目标目录> --name "项目名"
 ```
 
-脚本自动完成：创建目录 → `git init`（main 分支）→ 写入 AGENTS.md（交付硬规则：commit / 测试 / commit 语种规则 + 项目信息骨架）→ 创建 `docs/product-design.md`、`docs/tech-design.md` 骨架 → 写入 .gitignore → 首次 commit。
+脚本自动完成：创建目录 → `git init`（main 分支）→ 写入 AGENTS.md（交付硬规则：commit / 测试 / commit 语种规则 + 项目信息骨架）→ 创建 `docs/` 三份骨架（product-design.md、tech-design.md、acceptance-checklist.md）→ 写入 .gitignore → 首次 commit。
 
 > 语种取值优先级：用户手动指定（`--commit-lang` 或交互输入）＞ 用户当前系统语言（自动检测）＞ 简体中文（检测失败兜底）。交互终端下脚本会提示输入，回车即采用默认值；非交互场景直接采用检测结果。
 
-手动路径（脚本不可用时）：创建目录 → `git init` → 先与用户确认 commit 信息语种（未指定则默认采用用户当前系统所使用的语言：Windows 取系统 UI 语言，macOS / Linux 取 `LANG`、`LC_*` 环境变量，检测失败回退简体中文）→ 按 `assets/AGENTS.md.template` 写 AGENTS.md（含 commit 语种规则）→ 建 docs 骨架 → 首次 commit。
+手动路径（脚本不可用时）：创建目录 → `git init` → 先与用户确认 commit 信息语种（未指定则默认采用用户当前系统所使用的语言：Windows 取系统 UI 语言，macOS / Linux 取 `LANG`、`LC_*` 环境变量，检测失败回退简体中文）→ 按 `assets/AGENTS.template.md` 写 AGENTS.md（含 commit 语种规则）→ 建 docs 骨架（产品设计 / 技术方案 / 验收清单）→ 首次 commit。
 
 若用户选择非中文语种，可用 `--commit-msg` 传入该语种的首次提交信息。
 
@@ -85,7 +85,7 @@ python scripts/init_project.py <目标目录> --name "项目名"
 
 **动作**：
 
-1. 按 `assets/acceptance-checklist.md` 走查：主流程 → 边界情况 → 交互体验；
+1. 按项目内 `docs/acceptance-checklist.md`（初始化时已生成；缺失时从 `assets/acceptance-checklist.md` 复制）走查：主流程 → 边界情况 → 交互体验；
 2. 发现问题 → 反馈修复 → 回归验证；
 3. 若问题源于"预期本身" → 触发**规格修订回路**：先修文档，再重新实现，禁止绕过文档直接改实现。
 
@@ -146,7 +146,7 @@ python scripts/init_project.py <目标目录> --name "项目名"
 | 提示词模板 | `references/prompt-templates.md` | 需要给 AI 编程工具下达指令时（C-1 ~ C-7 可直接粘贴） |
 | 风险诊断手册 | `references/risk-playbook.md` | 用户报告异常、需要快速定位根因与动作时 |
 | 初始化脚本 | `scripts/init_project.py` | 阶段一（也可用于给已有项目补建护栏） |
-| 文档模板 | `assets/*.md` / `assets/AGENTS.md.template` | 生成产品设计文档、技术方案文档、验收清单、AGENTS.md 时 |
+| 文档模板（唯一权威源） | `assets/`：`AGENTS.template.md`、`product-design-template.md`、`tech-design-template.md`、`acceptance-checklist.md` | 生成对应文档时 |
 
 ## 注意事项
 

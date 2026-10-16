@@ -10,7 +10,8 @@
     1. 创建项目目录（已存在则复用）
     2. git init（分支 main；已是仓库则跳过）
     3. 写入 AGENTS.md（交付硬规则 + 项目信息骨架；已存在则不覆盖）
-    4. 创建 docs/product-design.md、docs/tech-design.md 骨架（已存在则不覆盖）
+    4. 创建 docs/ 三份骨架：product-design.md、tech-design.md、acceptance-checklist.md
+       （已存在则不覆盖）
     5. 写入基础 .gitignore（已存在则跳过）
     6. git add + 首次 commit（--no-commit 可跳过）
 
@@ -57,9 +58,15 @@ ASSETS_DIR = SCRIPT_DIR.parent / "assets"
 # commit 语种回退值：仅在用户未指定且系统语言检测失败时使用
 FALLBACK_COMMIT_LANG = "简体中文"
 
+# ── 模板与降级兜底（权威源：assets/） ─────────────────────────
+# assets/ 目录为模板的唯一权威源。下列 *_FALLBACK 常量仅在 assets 缺失时降级使用，
+# 修改任何模板时必须同步本处（反向亦然），保持两者内容逐字一致；
+# 可用占位符：{{PROJECT_NAME}} / {{COMMIT_LANG}} / {{DATE}}。
+
 AGENTS_FALLBACK = """# AGENTS.md
 
 > 本文件是 AI 编程代理的项目值班手册。进入本项目开启新会话时，先读取本文件并遵守以下规则。
+> 保持精简：高频规则放在这里，细节按需引用其他文档。
 
 ## 交付规则（必须遵守）
 
@@ -71,10 +78,11 @@ AGENTS_FALLBACK = """# AGENTS.md
 
 - 项目名称：{{PROJECT_NAME}}
 - 技术栈：（技术设计阶段填写）
-- 运行命令：（填写后更新）
-- 测试命令：（填写后更新）
+- 运行命令：（如 npm start，填写后更新）
+- 测试命令：（如 npm test，填写后更新）
 - 目录说明：
   - `docs/`：产品设计文档（product-design.md）与技术方案文档（tech-design.md）
+  - 其他目录：（按需补充）
 
 ## 边界约定
 
@@ -85,31 +93,46 @@ AGENTS_FALLBACK = """# AGENTS.md
 
 PRODUCT_FALLBACK = """# 产品设计文档 · {{PROJECT_NAME}}
 
-> 版本：v0.1 ｜ 日期：{{DATE}} ｜ 状态：草稿
-> 用途：确定本版本"做什么 / 暂时不做什么"，作为技术设计与实现开发的统一依据。
+> 版本：v0.1 ｜ 日期：{{DATE}} ｜ 状态：草稿 / 已确认（二选一）
+> 用途：确定本版本"做什么 / 暂时不做什么"，作为技术设计与实现开发的统一依据（施工图）。
+> 原则：简短优先——梳理整体方向与主要功能即可，细节留给迭代。
 
 ## 1. 一句话定位
 
+（这个产品是什么、给谁用、解决什么问题）
+
 ## 2. 核心用户路径（主流程）
 
-1. 
+1. 用户打开产品 → ……
+2. ……
+3. ……
 
 ## 3. 本版本功能清单（MVP）
 
 | 功能 | 说明 | 优先级 |
 |---|---|---|
 | | | 必须 |
+| | | 必须 |
 
 ## 4. 明确不做的事（推迟清单）
 
+> 明确"不做什么"与"做什么"同等重要，用于防止范围膨胀。
+
+- 
 - 
 
 ## 5. 边界条件与约束
 
+> 主动让 AI 列出隐含边界（编码格式、滚动方式、异常提示等）后逐项确认。
+
+- 
 - 
 
 ## 6. 验收要点
 
+> 从"做什么 / 不做"提炼为可检查的验收条件（"完成" = 全部满足）。
+
+- [ ] 
 - [ ] 
 
 ## 7. 待确认问题
@@ -119,8 +142,8 @@ PRODUCT_FALLBACK = """# 产品设计文档 · {{PROJECT_NAME}}
 
 TECH_FALLBACK = """# 技术方案文档 · {{PROJECT_NAME}}
 
-> 版本：v0.1 ｜ 日期：{{DATE}} ｜ 状态：草稿
-> 原则：只锁定技术栈与架构大方向，细节在实现中校准。
+> 版本：v0.1 ｜ 日期：{{DATE}} ｜ 状态：草稿 / 已确认（二选一）
+> 原则：只锁定技术栈与架构大方向，细节在实现中校准——过早写满细节，会把未验证的猜测包装成约束。
 
 ## 1. 技术栈
 
@@ -129,16 +152,22 @@ TECH_FALLBACK = """# 技术方案文档 · {{PROJECT_NAME}}
 | 语言 | | |
 | 框架 | | |
 | 构建工具 | | |
+| 其他 | | |
 
 ## 2. 架构方向
+
+（模块划分的大方向，1~3 段即可；不要求覆盖每个类与接口）
 
 ## 3. 备选方案与取舍记录
 
 | 候选方案 | 优点 | 缺点 | 结论 |
 |---|---|---|---|
+| | | | 采用 |
+| | | | 备选 |
 
 ## 4. 已知风险
 
+- 
 - 
 
 ## 5. 运行与测试方式
@@ -146,6 +175,42 @@ TECH_FALLBACK = """# 技术方案文档 · {{PROJECT_NAME}}
 - 运行命令：
 - 测试命令：
 - 验证工具（AI 自测所需）：
+
+> 填写后请同步更新 `AGENTS.md` 的"项目信息"一节。
+"""
+
+ACCEPTANCE_FALLBACK = """# 人工验收清单 · {{PROJECT_NAME}}
+
+> 原则：AI 自测通过 ≠ 无 Bug；验收单只能由人签。
+> 使用：每个版本交付前逐项走查，全部通过后再进入下一轮迭代。
+
+## 1. 冒烟测试（能不能跑）
+
+- [ ] 按文档中的运行命令可正常启动
+- [ ] 主流程可以走通
+
+## 2. 主流程走查（好不好用）
+
+- [ ] 用户核心路径完整可用
+- [ ] 交互体验符合预期（操作流畅、反馈明确）
+
+## 3. 边界与异常（稳不稳）
+
+- [ ] 空输入 / 非法输入有合理提示
+- [ ] 大文件 / 大数据量场景可接受
+- [ ] 上次出过问题的地方已回归验证
+
+## 4. 交付物检查
+
+- [ ] 所有改动均有对应 Git commit
+- [ ] 测试全部通过（含 Agent 提交的证据）
+- [ ] 文档已同步更新（规格变化已回写）
+
+## 5. 验收结论
+
+- 结论：通过 / 有条件通过 / 不通过
+- 遗留问题：
+- 验收人 / 日期：
 """
 
 GITIGNORE = """# 依赖
@@ -419,11 +484,13 @@ def main() -> int:
     # ── 3~5. 写入骨架文件（不覆盖已存在） ─────────────────────
     files = [
         (target / "AGENTS.md",
-         render(load_template("AGENTS.md.template", AGENTS_FALLBACK), project_name, commit_lang)),
+         render(load_template("AGENTS.template.md", AGENTS_FALLBACK), project_name, commit_lang)),
         (target / "docs" / "product-design.md",
          render(load_template("product-design-template.md", PRODUCT_FALLBACK), project_name, commit_lang)),
         (target / "docs" / "tech-design.md",
          render(load_template("tech-design-template.md", TECH_FALLBACK), project_name, commit_lang)),
+        (target / "docs" / "acceptance-checklist.md",
+         render(load_template("acceptance-checklist.md", ACCEPTANCE_FALLBACK), project_name, commit_lang)),
         (target / ".gitignore", GITIGNORE),
     ]
     for path, content in files:
