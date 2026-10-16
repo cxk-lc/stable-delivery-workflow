@@ -15,9 +15,16 @@
     6. git add + 首次 commit（--no-commit 可跳过）
 
 commit 信息语种:
-    - 创建首次提交前，先询问用户后续所有 commit 信息使用的语种：
-      默认「简体中文」，支持用户自行指定（如 English）。
-    - 交互终端下未传 --commit-lang 时会提示输入；非交互场景直接采用默认值。
+    - 创建首次提交前，先询问用户后续所有 commit 信息使用的语种。
+    - 默认值：用户当前系统所使用的语言（脚本自动检测，判断依据：
+        · Windows：系统 UI 语言（GetUserDefaultUILanguage）
+        · macOS / Linux：环境变量 LC_ALL / LC_MESSAGES / LANG
+        · 以上均无法识别时：回退「简体中文」）。
+    - 生效范围：该默认值仅在用户未手动指定时生效。用户手动指定优先——
+      用 --commit-lang 显式传入，或交互终端下输入自定义语种，
+      任一存在时一律以用户指定为准。
+    - 交互终端下未传 --commit-lang 时会提示输入（回车即采用默认值）；
+      非交互场景直接采用检测结果。
     - 语种会写入 AGENTS.md 的交付规则，约束后续所有 commit。
     - 首次提交信息默认跟随语种（中 / 英内置模板）；其他语种可用 --commit-msg 指定。
 
@@ -29,11 +36,14 @@ commit 信息语种:
 退出码: 0 成功；1 失败
 """
 import argparse
+import locale
+import os
 import shutil
 import subprocess
 import sys
 from datetime import date
 from pathlib import Path
+from typing import Optional
 
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -44,7 +54,8 @@ except Exception:
 SCRIPT_DIR = Path(__file__).resolve().parent
 ASSETS_DIR = SCRIPT_DIR.parent / "assets"
 
-DEFAULT_COMMIT_LANG = "简体中文"
+# commit 语种回退值：仅在用户未指定且系统语言检测失败时使用
+FALLBACK_COMMIT_LANG = "简体中文"
 
 AGENTS_FALLBACK = """# AGENTS.md
 
@@ -161,24 +172,139 @@ Thumbs.db
 """
 
 
-def resolve_commit_lang(cli_value):
-    """确定 commit 信息语种；返回 (语种, 是否采用默认值)。
+# ── 系统语言检测（commit 语种默认值的判断依据） ───────────────
+# Windows LANGID 主语言 ID → 语言代码（winnt.h 常用项）
+_WIN_LANGID_TO_CODE = {
+    0x01: "ar", 0x04: "zh", 0x05: "cs", 0x06: "da", 0x07: "de", 0x08: "el",
+    0x09: "en", 0x0A: "es", 0x0B: "fi", 0x0C: "fr", 0x0D: "he", 0x0E: "hu",
+    0x10: "it", 0x11: "ja", 0x12: "ko", 0x13: "nl", 0x14: "no", 0x15: "pl",
+    0x16: "pt", 0x18: "ro", 0x19: "ru", 0x1B: "sk", 0x1D: "sv", 0x1E: "th",
+    0x1F: "tr", 0x21: "id", 0x22: "uk", 0x2A: "vi", 0x39: "hi", 0x3E: "ms",
+}
 
-    - 显式传入 --commit-lang 时直接采用；
-    - 交互终端下（未传参）会询问用户，回车即采用默认值；
-    - 非交互场景（如自动化调用）直接采用默认值。
+# 语言代码 → 语种名（用于写入 AGENTS.md 规则、选择首次提交信息模板）
+_LANG_CODE_TO_NAME = {
+    "ar": "العربية", "cs": "Čeština", "da": "Dansk", "de": "Deutsch",
+    "el": "Ελληνικά", "en": "English", "es": "Español", "fi": "Suomi",
+    "fr": "Français", "he": "עברית", "hi": "हिन्दी", "hu": "Magyar",
+    "id": "Bahasa Indonesia", "it": "Italiano", "ja": "日本語", "ko": "한국어",
+    "ms": "Bahasa Melayu", "nl": "Nederlands", "no": "Norsk", "pl": "Polski",
+    "pt": "Português", "ro": "Română", "ru": "Русский", "sk": "Slovenčina",
+    "sv": "Svenska", "th": "ไทย", "tr": "Türkçe", "uk": "Українська",
+    "vi": "Tiếng Việt",
+}
+
+# 繁体中文的地区 / 字形标识（用于中文细分，其余中文一律视为简体）
+_TRADITIONAL_ZH_MARKERS = {"tw", "hk", "mo", "hant"}
+
+
+def _lang_name_from_code(code: str) -> Optional[str]:
+    """语言代码 → 语种名（zh 默认简体）；无法识别返回 None。"""
+    if code == "zh":
+        return "简体中文"
+    return _LANG_CODE_TO_NAME.get(code)
+
+
+def _lang_name_from_locale(raw: str) -> Optional[str]:
+    """解析 locale 表达（如 zh_CN.UTF-8 / zh-TW / en_US / C）→ 语种名。
+
+    C / POSIX 及无法识别者返回 None；中文按地区（tw/hk/mo）或字形（Hant）
+    细分；同时兼容 Windows 下的描述性名称（如 "Chinese (Simplified)_China"）。
+    """
+    if not raw:
+        return None
+    base = raw.strip().replace("-", "_").split(".")[0].split("@")[0]
+    parts = [p.lower() for p in base.split("_") if p]
+    if not parts or parts[0] in {"c", "posix"}:
+        return None
+    if parts[0] == "zh" or "chinese" in base.lower():
+        traditional = "traditional" in base.lower() or any(
+            p in _TRADITIONAL_ZH_MARKERS for p in parts[1:]
+        )
+        return "繁体中文" if traditional else "简体中文"
+    return _lang_name_from_code(parts[0])
+
+
+def _lang_name_from_langid(langid: int) -> Optional[str]:
+    """Windows LANGID → 语种名；中文按子语言细分（TW / HK / MO 为繁体）。"""
+    code = _WIN_LANGID_TO_CODE.get(langid & 0x3FF)
+    if code is None:
+        return None
+    if code == "zh":
+        return "繁体中文" if (langid >> 10) in {0x01, 0x03, 0x05} else "简体中文"
+    return _lang_name_from_code(code)
+
+
+def _get_windows_ui_langid() -> Optional[int]:
+    """读取 Windows 系统 UI 语言 LANGID；不可用时返回 None。"""
+    try:
+        import ctypes
+        return int(ctypes.windll.kernel32.GetUserDefaultUILanguage())
+    except Exception:
+        return None
+
+
+def detect_system_language():
+    """检测「用户当前系统所使用的语言」，返回 (语种名, 判断依据说明)。
+
+    判断依据（按优先级）：
+    1. Windows：系统 UI 语言（GetUserDefaultUILanguage）；
+    2. 环境变量 LC_ALL / LC_MESSAGES / LANG（macOS、Linux 及显式设置的环境）；
+    3. Python locale 查询（兼容 Windows 描述性名称）。
+    无法识别时返回 (None, None)，由调用方回退 FALLBACK_COMMIT_LANG。
+    """
+    if sys.platform == "win32":
+        langid = _get_windows_ui_langid()
+        if langid is not None:
+            name = _lang_name_from_langid(langid)
+            if name:
+                return name, f"Windows 系统 UI 语言（LANGID 0x{langid:04X}）"
+    for var in ("LC_ALL", "LC_MESSAGES", "LANG"):
+        raw = (os.environ.get(var) or "").strip()
+        if raw:
+            name = _lang_name_from_locale(raw)
+            if name:
+                return name, f"环境变量 {var}={raw}"
+    try:
+        loc = locale.getlocale()[0]
+    except Exception:
+        loc = None
+    if loc:
+        name = _lang_name_from_locale(loc)
+        if name:
+            return name, f"系统 locale（{loc}）"
+    return None, None
+
+
+def resolve_commit_lang(cli_value):
+    """确定 commit 信息语种；返回 (语种, 来源说明)。
+
+    生效规则（优先级从高到低，先命中者生效）：
+    1. 用户手动指定：--commit-lang 传入值，或交互终端下用户输入的值；
+    2. 用户未指定：默认采用「用户当前系统所使用的语言」（自动检测，
+       判断依据见 detect_system_language）；
+    3. 系统语言无法识别：回退 FALLBACK_COMMIT_LANG（简体中文）。
+    来源说明用于输出摘要，标明取值方式与默认值的判断依据。
     """
     if cli_value and cli_value.strip():
-        return cli_value.strip(), False
+        return cli_value.strip(), "用户手动指定（--commit-lang）"
+    detected, source = detect_system_language()
+    default_lang = detected or FALLBACK_COMMIT_LANG
+    if detected:
+        default_note = f"未指定，默认跟随系统语言；判断依据: {source}"
+        prompt_hint = f"默认 {default_lang}；未指定将跟随系统语言（判断依据: {source}）"
+    else:
+        default_note = "未指定且系统语言检测失败，已回退内置默认；可用 --commit-lang 指定"
+        prompt_hint = f"默认 {default_lang}（系统语言检测失败，回退内置默认）"
     if sys.stdin.isatty():
         try:
-            resp = input(f"后续所有 commit 信息使用语种 [默认: {DEFAULT_COMMIT_LANG}]: ").strip()
+            resp = input(f"后续所有 commit 信息使用语种 [{prompt_hint}]: ").strip()
         except (EOFError, KeyboardInterrupt):
             print()
             resp = ""
         if resp:
-            return resp, False
-    return DEFAULT_COMMIT_LANG, True
+            return resp, "用户手动指定（交互输入）"
+    return default_lang, default_note
 
 
 def is_english(lang: str) -> bool:
@@ -240,7 +366,8 @@ def main() -> int:
     parser.add_argument(
         "--commit-lang",
         default=None,
-        help=f"commit 信息使用的语种（默认：{DEFAULT_COMMIT_LANG}；交互终端下未指定会提示输入）",
+        help="commit 信息使用的语种（未指定时默认跟随用户当前系统语言，脚本自动检测；"
+             f"检测失败回退{FALLBACK_COMMIT_LANG}；交互终端下未指定会提示输入）",
     )
     parser.add_argument(
         "--commit-msg",
@@ -255,18 +382,15 @@ def main() -> int:
         print("[x] 未检测到 git，请先安装 Git: https://git-scm.com/")
         return 1
 
-    # ── 0. 首次提交前先确认 commit 信息语种 ────────────────────
-    commit_lang, lang_is_default = resolve_commit_lang(args.commit_lang)
+    # ── 0. 首次提交前先确认 commit 信息语种（未指定时跟随系统语言） ──
+    commit_lang, lang_note = resolve_commit_lang(args.commit_lang)
     commit_msg = (args.commit_msg or "").strip() or build_first_commit_msg(commit_lang)
 
     target = Path(args.target).expanduser().resolve()
     project_name = args.name or target.name
     steps = []
 
-    if lang_is_default:
-        steps.append(f"commit 信息语种: {commit_lang}（默认；可用 --commit-lang 指定其他语种）")
-    else:
-        steps.append(f"commit 信息语种: {commit_lang}")
+    steps.append(f"commit 信息语种: {commit_lang} — {lang_note}")
     if not (is_chinese(commit_lang) or is_english(commit_lang)) and not (args.commit_msg or "").strip():
         steps.append("首次提交信息暂用中文模板；如需其他语种，可加 --commit-msg 指定")
 

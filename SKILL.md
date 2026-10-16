@@ -29,16 +29,18 @@ agent_created: true
 
 **动作**（优先用脚本一键完成）：
 
-1. **创建首次提交前，先询问用户**：后续所有 commit 信息使用什么语种？默认 **简体中文**，用户可自行指定（如 English）。交互终端下脚本也会自动提示；非交互场景默认采用简体中文。
-2. 运行初始化脚本（将语种通过 `--commit-lang` 传入）：
+1. **创建首次提交前，先确认 commit 语种**：后续所有 commit 信息使用什么语种？**默认值：用户当前系统所使用的语言**（脚本自动检测；判断依据：Windows 取系统 UI 语言，macOS / Linux 取 `LANG`、`LC_ALL`、`LC_MESSAGES` 环境变量；检测失败回退简体中文）。该默认值**仅在用户未手动指定时生效**——用户一旦指定（`--commit-lang` 或交互输入，如 English），一律以用户指定为准。
+2. 运行初始化脚本（用户未指定语种时无需传 `--commit-lang`，脚本自动按上述规则取默认值）：
 
 ```bash
-python scripts/init_project.py <目标目录> --name "项目名" --commit-lang "简体中文"
+python scripts/init_project.py <目标目录> --name "项目名"
 ```
 
 脚本自动完成：创建目录 → `git init`（main 分支）→ 写入 AGENTS.md（交付硬规则：commit / 测试 / commit 语种规则 + 项目信息骨架）→ 创建 `docs/product-design.md`、`docs/tech-design.md` 骨架 → 写入 .gitignore → 首次 commit。
 
-手动路径（脚本不可用时）：创建目录 → `git init` → 先与用户确认 commit 信息语种（默认简体中文）→ 按 `assets/AGENTS.md.template` 写 AGENTS.md（含 commit 语种规则）→ 建 docs 骨架 → 首次 commit。
+> 语种取值优先级：用户手动指定（`--commit-lang` 或交互输入）＞ 用户当前系统语言（自动检测）＞ 简体中文（检测失败兜底）。交互终端下脚本会提示输入，回车即采用默认值；非交互场景直接采用检测结果。
+
+手动路径（脚本不可用时）：创建目录 → `git init` → 先与用户确认 commit 信息语种（未指定则默认采用用户当前系统所使用的语言：Windows 取系统 UI 语言，macOS / Linux 取 `LANG`、`LC_*` 环境变量，检测失败回退简体中文）→ 按 `assets/AGENTS.md.template` 写 AGENTS.md（含 commit 语种规则）→ 建 docs 骨架 → 首次 commit。
 
 若用户选择非中文语种，可用 `--commit-msg` 传入该语种的首次提交信息。
 
@@ -96,7 +98,7 @@ python scripts/init_project.py <目标目录> --name "项目名" --commit-lang "
 - 用户的开发需求或产品想法（任意粒度，一句话即可起步）；
 - 项目现状（全新项目 / 已有项目 / 已有代码）；
 - 目标 AI 编程工具与技术偏好（可选）；
-- commit 信息语种偏好（默认简体中文，可自行指定）。
+- commit 信息语种偏好（未指定时默认采用用户当前系统语言；可自行指定覆盖）。
 
 **输出**：
 
