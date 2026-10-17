@@ -27,16 +27,20 @@ stable-delivery-workflow/
 ├── SKILL.md                         # 技能主文件：五阶段工作流与执行指令
 ├── scripts/
 │   ├── init_project.py              # 项目初始化脚本（目录 + Git + AGENTS.md + docs 三份骨架 + 首次提交）
-│   └── tests/                       # 脚本回归测试（v1.1.1 起：T1/T2 最小用例）
+│   ├── check_project.py             # DoD 可执行校验器（护栏信号自查）
+│   ├── lint_references.py           # 引用完整性 lint（维护者发布前检查）
+│   └── tests/                       # 脚本回归测试（T1/T2；v1.3.0 扩展至 T1-T7）
 ├── references/
 │   ├── methodology.md               # 完整方法论：阶段详解 / 通用原则 / 风险全表
 │   ├── prompt-templates.md          # 各阶段提示词模板（C-1 ~ C-7，可直接粘贴给编程代理）
-│   └── risk-playbook.md             # 风险诊断手册：症状 → 根因 → 动作
+│   ├── risk-playbook.md             # 风险诊断手册：症状 → 根因 → 动作
+│   └── tooling-matrix.md            # 验证工具适配矩阵（能力 × 工具 + 能力齐备三问）
 └── assets/                          # 模板唯一权威源
     ├── AGENTS.template.md           # 项目值班手册模板（交付硬规则）
     ├── product-design-template.md   # 产品设计文档模板
     ├── tech-design-template.md      # 技术方案文档模板
-    └── acceptance-checklist.md      # 人工验收清单模板
+    ├── acceptance-checklist.md      # 人工验收清单模板
+    └── issue-report-template.md     # 问题反馈单模板（C-7 完整版）
 ```
 
 ## 快速开始
@@ -72,6 +76,8 @@ python scripts/init_project.py ./my-app --name "我的应用"
 
 脚本自动完成：创建目录 → `git init`（main 分支）→ 写入 AGENTS.md（交付硬规则）→ 创建 docs/ 三份骨架（产品设计 / 技术方案 / 验收清单）→ 写入 .gitignore → 首次提交。
 
+初始化后可运行 `python scripts/check_project.py <项目目录>` 自查护栏信号（G1-G3 / A1 / D1 / V1）。
+
 常用参数：
 
 | 参数 | 说明 |
@@ -96,9 +102,20 @@ python scripts/init_project.py ./my-app --name "我的应用"
 
 > 完整方法（阶段详解、通用原则、风险清单、执行清单）见 [`references/methodology.md`](references/methodology.md)。
 
+## 维护者指引
+
+发布前运行两项检查（均为标准库实现，零依赖）：
+
+```bash
+python scripts/lint_references.py                 # 引用 / 占位符完整性
+python -m unittest discover -s scripts/tests -v   # 脚本回归测试
+```
+
+版本语义：**patch** = 勘误 / 死链 / 措辞修复；**minor** = 能力新增；**major** = 阶段模型或护栏规则变更。
+
 ## 版本
 
-当前版本：**v1.1.1**
+当前版本：**v1.2.0**
 
 ## 来源与致谢
 
