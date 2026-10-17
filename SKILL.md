@@ -8,7 +8,7 @@ agent_created: true
 
 ## 目标定位
 
-把"用 AI 稳定交付高质量产品"的方法论落地为流程：在 **可回退（Git）、可自检（AI 自测）、可验收（人工验证）** 三重护栏内，用"规格 → 实现 → 验证"闭环驱动 AI 编程工具交付。
+把"用 AI 稳定交付高质量产品"的方法论落为流程：在 **可回退（Git）、可自检（AI 自测）、可验收（人工验证）** 三重护栏内，用"规格 → 实现 → 验证"闭环驱动 AI 编程工具交付。
 
 角色：**流程引导者 + 文档生产者 + 诊断顾问**——不替代用户的编程 Agent，为交付过程提供规范、脚本、模板与检查点。
 
@@ -25,7 +25,7 @@ agent_created: true
 
 ## 核心步骤（五阶段闭环）
 
-> 每阶段达到 DoD 才进入下一阶段；简单需求可经用户确认跳过阶段二、三；**三重护栏不可裁剪**。
+> 每阶段达到 DoD 才进入下一阶段；简单需求可经确认跳过阶段二、三；**三重护栏不可裁剪**。
 
 ### 阶段一 · 环境搭建（一次性）
 
@@ -34,7 +34,7 @@ agent_created: true
 
 ### 阶段二 · 产品设计（What）
 
-**动作**：与 AI 讨论 MVP → **逐项砍范围**（"没有它主流程还能跑通吗？"）→ 补边界与"不做清单" → 按 `assets/product-design-template.md` 落成 `docs/product-design.md` 并确认（C-1/C-2；后端重时先 Demo，C-3）。
+**动作**：讨论 MVP → **逐项砍范围**（"没有它主流程还能跑通吗？"）→ 补边界与"不做清单" → 按 `assets/product-design-template.md` 落成 `docs/product-design.md` 并确认（C-1/C-2；后端重时先 Demo，C-3）。
 **DoD**："做什么 / 不做什么"清单明确且经用户确认。详见 methodology 阶段二。
 
 ### 阶段三 · 技术设计（How）
@@ -44,17 +44,17 @@ agent_created: true
 
 ### 阶段四 · 产品实现
 
-**动作**：确认 AI 自测能力 → 新会话让实现 Agent 读双文档开工（C-6）→ 自测通过后人工冒烟 → 报错按现场原样反馈（C-7；完整版见 `assets/issue-report-template.md`）并复验。
+**动作**：确认 AI 自测能力 → 新会话让实现 Agent 读双文档开工（C-6）→ 自测通过后人工冒烟 → 报错按现场原样反馈（C-7，模板 `assets/issue-report-template.md`）并复验。
 **DoD**：AI 自测通过 + 人工冒烟通过 + 每改动一个 commit。详见 methodology 阶段四。
 
 ### 阶段五 · 人工验证
 
-**动作**：按项目内 `docs/acceptance-checklist.md`（缺失时复制 `assets/acceptance-checklist.md`）走查：主流程 → 边界 → 交互体验；问题反馈修复并回归；若源于"预期本身"，先改文档再重实现（规格修订回路）。
-**DoD**：验收清单通过，验收结论由人签字。详见 methodology 阶段五。
+**动作**：按项目内 `docs/acceptance-checklist.md`（缺失时复制 `assets/acceptance-checklist.md`）走查：主流程 → 边界 → 交互体验；反馈修复并回归；若源于"预期本身"，先改文档再重实现（规格修订回路）。
+**DoD**：验收清单通过，验收结论由人签字；若发布：tag + 发布记录归档。详见 methodology 阶段五。
 
 ## 输入 / 输出 / 关键约束
 
-**输入**：需求 / 项目现状 / 工具偏好（可选）/ commit 语种（默认跟随系统语言）。
+**输入**：需求 / 项目现状 / 工具偏好（可选）/ commit 语种（默认随系统语言）。
 **输出**：受控环境 + 双规格文档 + 可运行版本与提交史 + 验收记录 / 诊断结论。
 
 **关键约束**（不可违背）：
@@ -67,9 +67,9 @@ agent_created: true
 
 ## 使用方式
 
-- **A 一键初始化**：`scripts/init_project.py` 后按阶段推进；
+- **A 一键初始化**：`init_project.py` 后按阶段推进（可先 `--dry-run` 预演）；
 - **B 分阶段引导**：单阶段会话，产出交付物并核对 DoD；
-- **C 问题诊断**：查 `references/risk-playbook.md` 症状表后补做缺失环节（`scripts/check_project.py` 取证）。
+- **C 问题诊断**：查 `references/risk-playbook.md` 症状表后补缺失环节（`scripts/check_project.py` 取证）。
 
 ## 典型示例
 
@@ -83,13 +83,13 @@ agent_created: true
 |---|---|---|
 | 方法论（权威） | `references/methodology.md` | 阶段细则 / 原则 / 风险 |
 | 提示词模板 | `references/prompt-templates.md` | 下达指令（C-1 ~ C-7） |
-| 风险诊断手册 | `references/risk-playbook.md` | 症状 → 根因 → 动作定位 |
-| 验证工具矩阵 | `references/tooling-matrix.md` | 各工具自测配置（阶段一 DoD） |
-| 脚本 | `scripts/`：init_project / check_project / lint_references | 初始化 / 自查取证 / 发布前检查 |
-| 模板（唯一权威源） | `assets/`：AGENTS / 产品设计 / 技术方案 / 验收清单 / 问题反馈 | 生成文档时 |
+| 风险诊断手册 | `references/risk-playbook.md` | 症状 → 根因 → 动作 |
+| 验证工具矩阵 | `references/tooling-matrix.md` | 工具自测配置（阶段一 DoD） |
+| 脚本 | `scripts/`：init_project / check_project / lint_references | 初始化 / 取证 / 发布检查 |
+| 模板（唯一权威源） | `assets/`：AGENTS / 产品设计 / 技术方案 / 验收清单 / 问题反馈 / 发布记录 | 生成时 |
 
 ## 注意事项
 
-- AGENTS.md 保持精简（高频规则放入口），写成"百科全书"会丢重点；
+- AGENTS.md 保持精简（高频规则放入口），写成"百科全书"会失焦；
 - 反馈报错**原样描述现场**（步骤 + 报错原文），不转述、不推测；
-- 新主题新会话；共识一律落文档（AI 跨会话的记忆载体）。
+- 新主题新会话；共识落文档（跨会话记忆载体）。

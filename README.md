@@ -40,7 +40,8 @@ stable-delivery-workflow/
     ├── product-design-template.md   # 产品设计文档模板
     ├── tech-design-template.md      # 技术方案文档模板
     ├── acceptance-checklist.md      # 人工验收清单模板
-    └── issue-report-template.md     # 问题反馈单模板（C-7 完整版）
+    ├── issue-report-template.md     # 问题反馈单模板（C-7 完整版）
+    └── release-record-template.md   # 发布记录模板（阶段五·发布）
 ```
 
 ## 快速开始
@@ -113,9 +114,11 @@ python -m unittest discover -s scripts/tests -v   # 脚本回归测试
 
 版本语义：**patch** = 勘误 / 死链 / 措辞修复；**minor** = 能力新增；**major** = 阶段模型或护栏规则变更。
 
+发布纪律：`lint + 测试 → 更新 CHANGELOG → 升版本号 → 打 tag`；变更记录见 [CHANGELOG.md](CHANGELOG.md)。
+
 ## 版本
 
-当前版本：**v1.2.0**
+当前版本：**v1.3.0**
 
 ## 来源与致谢
 

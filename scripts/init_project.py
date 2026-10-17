@@ -4,7 +4,8 @@
 
 用法:
     python init_project.py <目标目录> [--name 项目名] [--commit-lang 语种]
-                           [--commit-msg 首次提交信息] [--remote 远端URL] [--no-commit]
+                           [--commit-msg 首次提交信息] [--remote 远端URL]
+                           [--no-commit] [--dry-run]
 
 执行内容:
     1. 创建项目目录（已存在则复用）
@@ -14,6 +15,9 @@
        （已存在则不覆盖）
     5. 写入基础 .gitignore（已存在则跳过）
     6. git add + 首次 commit（--no-commit 可跳过）
+
+演练模式:
+    --dry-run 只输出「将执行」的步骤：不创建目录 / 不写文件 / 不初始化仓库 / 不提交。
 
 commit 信息语种:
     - 创建首次提交前，先询问用户后续所有 commit 信息使用的语种。
@@ -441,6 +445,7 @@ def main() -> int:
     )
     parser.add_argument("--remote", default=None, help="可选：关联远端仓库 URL（git remote add origin）")
     parser.add_argument("--no-commit", action="store_true", help="只搭建环境，不创建首次 commit")
+    parser.add_argument("--dry-run", action="store_true", help="只演练不落盘：输出将执行的步骤，不创建任何文件")
     args = parser.parse_args()
 
     if shutil.which("git") is None:
@@ -465,6 +470,8 @@ def main() -> int:
             print(f"[x] 目标已存在且不是目录: {target}")
             return 1
         steps.append(f"目录已存在，复用: {target}")
+    elif args.dry_run:
+        steps.append(f"将创建项目目录: {target}")
     else:
         target.mkdir(parents=True)
         steps.append(f"已创建项目目录: {target}")
@@ -472,6 +479,8 @@ def main() -> int:
     # ── 2. git init ──────────────────────────────────────────
     if (target / ".git").exists():
         steps.append("已是 Git 仓库，跳过 git init")
+    elif args.dry_run:
+        steps.append("将初始化 Git 仓库（分支 main）")
     else:
         r = run_git(["init", "-b", "main"], target)
         if r.returncode != 0:
@@ -498,6 +507,9 @@ def main() -> int:
         if path.exists():
             steps.append(f"已存在，跳过: {rel}")
             continue
+        if args.dry_run:
+            steps.append(f"将创建: {rel}")
+            continue
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
         steps.append(f"已创建: {rel}")
@@ -508,6 +520,8 @@ def main() -> int:
         remotes = (existing.stdout or "").split()
         if "origin" in remotes:
             steps.append("origin 远端已存在，跳过 remote add")
+        elif args.dry_run:
+            steps.append(f"将关联远端 origin: {args.remote}")
         else:
             r = run_git(["remote", "add", "origin", args.remote], target)
             if r.returncode == 0:
@@ -518,6 +532,8 @@ def main() -> int:
     # ── 6. 首次提交（使用已确认的语种） ───────────────────────
     if args.no_commit:
         steps.append("按 --no-commit 要求，未创建首次提交")
+    elif args.dry_run:
+        steps.append(f"将创建首次提交（commit 信息: {commit_msg}）")
     else:
         run_git(["add", "-A"], target)
         status = run_git(["status", "--porcelain"], target)
@@ -538,7 +554,10 @@ def main() -> int:
 
     # ── 输出摘要 ─────────────────────────────────────────────
     print("=" * 56)
-    print(f"AI 编程项目初始化完成 · {project_name}")
+    if args.dry_run:
+        print(f"【演练模式】初始化将按以下步骤执行 · {project_name}（未写入任何文件）")
+    else:
+        print(f"AI 编程项目初始化完成 · {project_name}")
     print("=" * 56)
     for s in steps:
         print("  · " + s)
@@ -547,6 +566,9 @@ def main() -> int:
     print("  1. 打开你的 AI 编程工具（Codex / Claude Code 等），加载本项目目录")
     print("  2. 粘贴提示词（见 skill stable-delivery-workflow 的 references/prompt-templates.md C-1）")
     print("  3. 讨论出 MVP 后，填好 docs/product-design.md 并请用户确认")
+    if args.dry_run:
+        print()
+        print("演练完成：未做任何修改；去掉 --dry-run 即实际执行。")
     return 0
 
 
