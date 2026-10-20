@@ -17,6 +17,7 @@
 """
 import builtins
 import importlib.util
+import os
 import shutil
 import subprocess
 import sys
@@ -45,6 +46,18 @@ def git_out(target: Path, *args: str) -> str:
     r = subprocess.run(["git", "-C", str(target), *args],
                        capture_output=True, text=True, encoding="utf-8", errors="replace")
     return (r.stdout or "").strip()
+
+
+def make_repo(target: Path, with_commit: bool = True) -> None:
+    """创建带本地身份的临时仓库，可选一次基线提交。"""
+    target.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["git", "init", "-b", "main"], cwd=target, capture_output=True)
+    subprocess.run(["git", "config", "user.name", "T"], cwd=target, capture_output=True)
+    subprocess.run(["git", "config", "user.email", "t@t"], cwd=target, capture_output=True)
+    if with_commit:
+        (target / "README.md").write_text("initial\n", encoding="utf-8")
+        subprocess.run(["git", "add", "-A"], cwd=target, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "initial"], cwd=target, capture_output=True)
 
 
 class TestInitProject(unittest.TestCase):
@@ -139,6 +152,12 @@ class TestInitProject(unittest.TestCase):
             sys.stdin = FakePipe()
             m.detect_system_language = lambda: ("English", "mock")
             self.assertEqual(m.resolve_commit_lang(None)[0], "English")
+            # 6) locale 代码归一化
+            self.assertEqual(m.resolve_commit_lang("en-GB")[0], "English")
+            self.assertEqual(m.resolve_commit_lang("zh-TW")[0], "繁體中文")
+            # 7) 首提模板：繁體中文使用繁体文案
+            self.assertIn("初始化專案", m.build_first_commit_msg("繁體中文"))
+            self.assertIsNone(m.build_first_commit_msg("日本語"))
         finally:
             sys.stdin, builtins.input = orig_stdin, orig_input
 
@@ -219,6 +238,101 @@ class TestInitProject(unittest.TestCase):
             self.assertEqual(r2.returncode, 0, msg=r2.stdout + r2.stderr)
             self.assertEqual(list(target.iterdir()), [], msg="dry-run 不应写入任何文件")
             self.assertFalse((target / ".git").exists(), msg="dry-run 不应初始化仓库")
+
+            r3 = run_init(target, "--dry-run", "--remote", "https://example.com/x.git")
+            self.assertEqual(r3.returncode, 0, msg=r3.stdout + r3.stderr)
+            self.assertIn("将关联远端", r3.stdout)
+            self.assertEqual(list(target.iterdir()), [], msg="dry-run --remote 不应写入任何文件")
+
+    def test_t9_existing_dirty_repo_not_swept(self):
+        """T9 已有未提交改动：首提只包含本次创建的文件，不卷入 WIP/未跟踪文件。"""
+        with tempfile.TemporaryDirectory() as td:
+            target = Path(td) / "app"
+            make_repo(target)
+            (target / "README.md").write_text("work in progress\n", encoding="utf-8")
+            (target / "secret-draft.txt").write_text("draft\n", encoding="utf-8")
+
+            r = run_init(target)
+            self.assertEqual(r.returncode, 0, msg=r.stdout + r.stderr)
+            files = {ln for ln in git_out(target, "show", "--pretty=format:", "--name-only", "HEAD").splitlines() if ln}
+            self.assertEqual(files, {
+                ".gitignore", "AGENTS.md",
+                "docs/product-design.md", "docs/tech-design.md",
+                "docs/acceptance-checklist.md",
+            })
+            self.assertNotIn("README.md", files, msg="WIP 被卷入首提")
+            self.assertNotIn("secret-draft.txt", files, msg="未跟踪文件被卷入首提")
+            status = git_out(target, "status", "--porcelain")
+            self.assertIn("README.md", status)
+            self.assertIn("secret-draft.txt", status)
+
+    def test_t10_staged_repo_skips_commit(self):
+        """T10 已有暂存改动：跳过自动提交，不把暂存内容混入首提。"""
+        with tempfile.TemporaryDirectory() as td:
+            target = Path(td) / "app"
+            make_repo(target)
+            (target / "README.md").write_text("staged work\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(target), "add", "README.md"], capture_output=True)
+
+            before = int(git_out(target, "rev-list", "--count", "HEAD") or 0)
+            r = run_init(target)
+            after = int(git_out(target, "rev-list", "--count", "HEAD") or 0)
+            self.assertEqual(r.returncode, 0, msg=r.stdout + r.stderr)
+            self.assertEqual(before, after, msg="不应在已有暂存改动时自动提交")
+            self.assertIn("跳过自动提交", r.stdout)
+            status = git_out(target, "status", "--porcelain")
+            self.assertIn("README.md", status)
+            self.assertIn("AGENTS.md", status)
+
+    def test_t11_traditional_chinese_first_commit(self):
+        """T11 繁體中文：AGENTS.md 与首次提交都使用繁体中文。"""
+        with tempfile.TemporaryDirectory() as td:
+            target = Path(td) / "app"
+            r = run_init(target, "--commit-lang", "繁體中文")
+            self.assertEqual(r.returncode, 0, msg=r.stdout + r.stderr)
+            self.assertIn("初始化專案", git_out(target, "log", "-1", "--pretty=%s"))
+            self.assertIn("繁體中文", (target / "AGENTS.md").read_text(encoding="utf-8"))
+
+    def test_t12_unsupported_language_requires_commit_msg(self):
+        """T12 不支持的语种：无 --commit-msg 时失败且不落盘；提供后成功。"""
+        with tempfile.TemporaryDirectory() as td:
+            target = Path(td) / "app"
+            r = run_init(target, "--commit-lang", "日本語")
+            self.assertEqual(r.returncode, 1)
+            self.assertFalse(target.exists(), msg="失败时不应创建目标目录")
+            self.assertIn("--commit-msg", r.stdout)
+
+            r2 = run_init(target, "--commit-lang", "日本語", "--commit-msg", "chore: 初期化")
+            self.assertEqual(r2.returncode, 0, msg=r2.stdout + r2.stderr)
+            self.assertEqual(git_out(target, "log", "-1", "--pretty=%s"), "chore: 初期化")
+
+            target2 = Path(td) / "app-no-commit"
+            r3 = run_init(target2, "--commit-lang", "日本語", "--no-commit")
+            self.assertEqual(r3.returncode, 0, msg=r3.stdout + r3.stderr)
+            self.assertTrue((target2 / "AGENTS.md").is_file())
+            self.assertEqual(git_out(target2, "rev-list", "--count", "HEAD") or "0", "0")
+
+    def test_t13_commit_failure_is_reported(self):
+        """T13 提交失败：返回非 0，且不覆盖已有的仓库本地身份。"""
+        with tempfile.TemporaryDirectory() as td:
+            target = Path(td) / "app"
+            make_repo(target)
+            hooks = Path(td) / "hooks"
+            hooks.mkdir()
+            hook = hooks / "pre-commit"
+            hook.write_text("#!/bin/sh\necho blocked-by-test >&2\nexit 1\n", encoding="utf-8")
+            try:
+                os.chmod(hook, 0o755)
+            except OSError:
+                pass
+            subprocess.run(["git", "-C", str(target), "config", "core.hooksPath", str(hooks)],
+                           capture_output=True)
+
+            r = run_init(target)
+            self.assertEqual(r.returncode, 1, msg=r.stdout + r.stderr)
+            self.assertIn("提交失败", r.stdout)
+            self.assertEqual(git_out(target, "config", "--local", "--get", "user.name"), "T")
+            self.assertEqual(git_out(target, "config", "--local", "--get", "user.email"), "t@t")
 
 
 if __name__ == "__main__":

@@ -14,7 +14,7 @@
     4. 创建 docs/ 三份骨架：product-design.md、tech-design.md、acceptance-checklist.md
        （已存在则不覆盖）
     5. 写入基础 .gitignore（已存在则跳过）
-    6. git add + 首次 commit（--no-commit 可跳过）
+    6. 仅暂存本次创建的文件并提交（--no-commit 可跳过）
 
 演练模式:
     --dry-run 只输出「将执行」的步骤：不创建目录 / 不写文件 / 不初始化仓库 / 不提交。
@@ -31,14 +31,18 @@ commit 信息语种:
     - 交互终端下未传 --commit-lang 时会提示输入（回车即采用默认值）；
       非交互场景直接采用检测结果。
     - 语种会写入 AGENTS.md 的交付规则，约束后续所有 commit。
-    - 首次提交信息默认跟随语种（中 / 英内置模板）；其他语种可用 --commit-msg 指定。
+    - 内置首次提交模板支持 English / 简体中文 / 繁體中文；其他语种请用
+      --commit-msg 指定首次提交信息（--no-commit 时不需要）。
 
 安全约定:
     - 不删除、不覆盖任何已存在的文件
     - 不重复初始化已有仓库
-    - 不修改全局 git 配置（如缺少身份，仅为本仓库设置占位身份）
+    - 不把已有未提交改动混入首次提交：只 add 本次创建的文件；
+      若发现已有暂存改动，则跳过自动提交并提示手动处理
+    - 不覆盖用户已有的仓库本地 git 身份；仅在提交因缺少身份失败时补齐缺失项
+    - 不修改全局 git 配置
 
-退出码: 0 成功；1 失败
+退出码: 0 成功；1 失败（含首次提交或远端关联失败）
 """
 import argparse
 import locale
@@ -74,9 +78,10 @@ AGENTS_FALLBACK = """# AGENTS.md
 
 ## 交付规则（必须遵守）
 
-1. **每次改动后必须创建 Git commit**，保留可追踪的版本快照，便于随时回退。
+1. **每完成一个可验证的功能或修复后必须创建 Git commit**，保留可追踪的版本快照，便于随时回退。
 2. **每次改动后必须编写或更新相关测试**，并在交付前确保所有测试与验收全部通过。
 3. **所有 Git commit 信息统一使用{{COMMIT_LANG}}**（初始化时确认，如需变更请同步修改本文件）。
+4. **不提交密钥与敏感数据**：不要提交 `.env`、密钥、客户数据；配置示例写入 `.env.example`。
 
 ## 项目信息
 
@@ -92,6 +97,7 @@ AGENTS_FALLBACK = """# AGENTS.md
 
 - 不擅自扩大需求范围；"暂时不做"的功能清单见 `docs/product-design.md`。
 - 遇到规格不明确的情况：先提问或停下，不要猜测后直接实现。
+- 涉及密钥、客户数据或隐私信息时先询问，不要写入代码、日志或提交。
 - 重大架构调整前，先给出方案并等待确认。
 """
 
@@ -221,14 +227,21 @@ GITIGNORE = """# 依赖
 node_modules/
 venv/
 .venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
 
 # 构建产物
 dist/
 build/
+.coverage
+htmlcov/
 
 # 环境与密钥
 .env
-.env.local
+.env.*
+!.env.example
 
 # 系统与编辑器
 .DS_Store
@@ -290,8 +303,23 @@ def _lang_name_from_locale(raw: str) -> Optional[str]:
         traditional = "traditional" in base.lower() or any(
             p in _TRADITIONAL_ZH_MARKERS for p in parts[1:]
         )
-        return "繁体中文" if traditional else "简体中文"
+        return "繁體中文" if traditional else "简体中文"
     return _lang_name_from_code(parts[0])
+
+
+def normalize_lang(value: str) -> str:
+    """把 locale 代码归一化为语种名；已是语种名或无法识别时原样返回。
+
+    例：en-GB → English；zh-TW → 繁體中文；ja → 日本語；English → English。
+    """
+    raw = (value or "").strip()
+    if not raw:
+        return raw
+    if all(ord(ch) < 128 for ch in raw):
+        name = _lang_name_from_locale(raw)
+        if name:
+            return name
+    return raw
 
 
 def _lang_name_from_langid(langid: int) -> Optional[str]:
@@ -300,7 +328,7 @@ def _lang_name_from_langid(langid: int) -> Optional[str]:
     if code is None:
         return None
     if code == "zh":
-        return "繁体中文" if (langid >> 10) in {0x01, 0x03, 0x05} else "简体中文"
+        return "繁體中文" if (langid >> 10) in {0x01, 0x03, 0x05} else "简体中文"
     return _lang_name_from_code(code)
 
 
@@ -356,7 +384,12 @@ def resolve_commit_lang(cli_value):
     来源说明用于输出摘要，标明取值方式与默认值的判断依据。
     """
     if cli_value and cli_value.strip():
-        return cli_value.strip(), "用户手动指定（--commit-lang）"
+        raw = cli_value.strip()
+        normalized = normalize_lang(raw)
+        note = "用户手动指定（--commit-lang）"
+        if normalized != raw:
+            note += f"；已归一化为 {normalized}"
+        return normalized, note
     detected, source = detect_system_language()
     default_lang = detected or FALLBACK_COMMIT_LANG
     if detected:
@@ -372,25 +405,50 @@ def resolve_commit_lang(cli_value):
             print()
             resp = ""
         if resp:
-            return resp, "用户手动指定（交互输入）"
+            return normalize_lang(resp), "用户手动指定（交互输入）"
     return default_lang, default_note
 
 
 def is_english(lang: str) -> bool:
     low = lang.strip().lower()
-    return "英" in lang or "english" in low or low in {"en", "en-us", "en_us"}
+    return (
+        "英" in lang
+        or "english" in low
+        or low in {"en", "en-us", "en_us", "en-gb", "en_gb"}
+        or low.startswith("en-")
+        or low.startswith("en_")
+    )
+
+
+def is_traditional_chinese(lang: str) -> bool:
+    low = lang.strip().lower()
+    return (
+        "繁" in lang
+        or "traditional" in low
+        or any(tag in low for tag in ("zh-tw", "zh_tw", "zh-hk", "zh_hk", "zh-mo", "zh_mo", "hant"))
+    )
 
 
 def is_chinese(lang: str) -> bool:
     low = lang.strip().lower()
-    return "中" in lang or "chinese" in low or low in {"zh", "zh-cn", "zh_cn"}
+    return (
+        "中" in lang
+        or "chinese" in low
+        or low == "zh"
+        or low.startswith("zh-")
+        or low.startswith("zh_")
+    )
 
 
-def build_first_commit_msg(lang: str) -> str:
-    """按语种生成首次提交信息（中 / 英内置模板；其他语种回退中文模板）。"""
+def build_first_commit_msg(lang: str) -> Optional[str]:
+    """按语种生成首次提交信息；不支持的语种返回 None（需 --commit-msg）。"""
+    if is_traditional_chinese(lang):
+        return "chore: 初始化專案（AGENTS.md + docs 骨架）"
     if is_english(lang):
         return "chore: init project (AGENTS.md + docs skeleton)"
-    return "chore: 初始化项目（AGENTS.md + docs 骨架）"
+    if is_chinese(lang):
+        return "chore: 初始化项目（AGENTS.md + docs 骨架）"
+    return None
 
 
 def load_template(filename: str, fallback: str) -> str:
@@ -426,6 +484,44 @@ def run_git(args, cwd) -> subprocess.CompletedProcess:
     )
 
 
+def git_config_get(cwd, key: str) -> str:
+    """读取仓库本地/全局生效的 git 配置值；不存在时返回空串。"""
+    r = run_git(["config", "--get", key], cwd)
+    return (r.stdout or "").strip()
+
+
+def ensure_local_identity(cwd) -> list:
+    """只补齐缺失的仓库本地身份，绝不覆盖用户已有配置。"""
+    changed = []
+    if not git_config_get(cwd, "user.name"):
+        run_git(["config", "user.name", "Stable Delivery Workflow"], cwd)
+        changed.append("user.name")
+    if not git_config_get(cwd, "user.email"):
+        run_git(["config", "user.email", "stable-delivery@local"], cwd)
+        changed.append("user.email")
+    return changed
+
+
+def is_identity_error(text: str) -> bool:
+    """判断 git 提交失败是否由缺少身份配置导致。"""
+    low = (text or "").lower()
+    return any(s in low for s in (
+        "please tell me who you are",
+        "unable to auto-detect email",
+        "author identity unknown",
+        "empty ident name",
+        "no email was given and auto-detection is disabled",
+    ))
+
+
+def has_staged_changes(status_text: str) -> bool:
+    """从 git status --porcelain 判断是否存在已暂存改动。"""
+    for line in (status_text or "").splitlines():
+        if len(line) >= 2 and line[0] not in (" ", "?", "!"):
+            return True
+    return False
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="初始化 AI 编程项目环境（Git + AGENTS.md + docs 骨架）"
@@ -441,7 +537,7 @@ def main() -> int:
     parser.add_argument(
         "--commit-msg",
         default=None,
-        help="覆盖首次提交信息原文（用于非中 / 英语种或自定义文案）",
+        help="覆盖首次提交信息原文（用于 English / 简体中文 / 繁體中文之外的语种或自定义文案）",
     )
     parser.add_argument("--remote", default=None, help="可选：关联远端仓库 URL（git remote add origin）")
     parser.add_argument("--no-commit", action="store_true", help="只搭建环境，不创建首次 commit")
@@ -454,15 +550,24 @@ def main() -> int:
 
     # ── 0. 首次提交前先确认 commit 信息语种（未指定时跟随系统语言） ──
     commit_lang, lang_note = resolve_commit_lang(args.commit_lang)
-    commit_msg = (args.commit_msg or "").strip() or build_first_commit_msg(commit_lang)
+    custom_msg = (args.commit_msg or "").strip()
+    commit_msg = custom_msg or build_first_commit_msg(commit_lang)
+    if commit_msg is None and not args.no_commit and not args.dry_run:
+        print(f"[x] 暂不支持自动生成「{commit_lang}」的首次提交信息。")
+        print("    请用 --commit-msg 指定首次提交信息，或改用 --commit-lang English / 简体中文 / 繁體中文。")
+        print("    如只想先搭建环境，可加 --no-commit，稍后手动提交。")
+        return 1
 
     target = Path(args.target).expanduser().resolve()
     project_name = args.name or target.name
     steps = []
 
     steps.append(f"commit 信息语种: {commit_lang} — {lang_note}")
-    if not (is_chinese(commit_lang) or is_english(commit_lang)) and not (args.commit_msg or "").strip():
-        steps.append("首次提交信息暂用中文模板；如需其他语种，可加 --commit-msg 指定")
+    if commit_msg is None:
+        if args.no_commit:
+            steps.append("首次提交信息：当前语种无内置模板；本次使用 --no-commit，无需提交信息")
+        else:
+            steps.append("首次提交信息：当前语种无内置模板，实际执行需 --commit-msg（本次为演练/不提交）")
 
     # ── 1. 目录 ──────────────────────────────────────────────
     if target.exists():
@@ -490,6 +595,25 @@ def main() -> int:
             return 1
         steps.append("已初始化 Git 仓库（分支 main）")
 
+    # 记录写入前的仓库状态：只把本次创建的文件纳入首次提交
+    pre_status = None
+    pre_staged = False
+    pre_dirty = False
+    if (target / ".git").exists():
+        r_status = run_git(["status", "--porcelain"], target)
+        if r_status.returncode == 0:
+            pre_status = r_status.stdout or ""
+            pre_staged = has_staged_changes(pre_status)
+            pre_dirty = bool(pre_status.strip())
+        else:
+            # 状态不可读时保守处理：不自动提交，避免污染
+            pre_staged = True
+            pre_dirty = True
+    if pre_staged:
+        steps.append("检测到已有暂存改动：为避免混入首次提交，将跳过自动提交（本次创建的文件不暂存）")
+    elif pre_dirty:
+        steps.append("检测到已有未提交改动：首次提交只包含本次创建的文件")
+
     # ── 3~5. 写入骨架文件（不覆盖已存在） ─────────────────────
     files = [
         (target / "AGENTS.md",
@@ -502,6 +626,7 @@ def main() -> int:
          render(load_template("acceptance-checklist.md", ACCEPTANCE_FALLBACK), project_name, commit_lang)),
         (target / ".gitignore", GITIGNORE),
     ]
+    created = []
     for path, content in files:
         rel = path.relative_to(target)
         if path.exists():
@@ -509,55 +634,98 @@ def main() -> int:
             continue
         if args.dry_run:
             steps.append(f"将创建: {rel}")
+            created.append(rel.as_posix())
             continue
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
         steps.append(f"已创建: {rel}")
+        created.append(rel.as_posix())
 
     # ── 远端（可选） ─────────────────────────────────────────
+    remote_failed = False
     if args.remote:
-        existing = run_git(["remote"], target)
-        remotes = (existing.stdout or "").split()
-        if "origin" in remotes:
-            steps.append("origin 远端已存在，跳过 remote add")
-        elif args.dry_run:
+        if not (target / ".git").exists():
+            # dry-run 且目标尚未初始化：只输出计划，避免在不存在目录上执行 git
             steps.append(f"将关联远端 origin: {args.remote}")
         else:
-            r = run_git(["remote", "add", "origin", args.remote], target)
-            if r.returncode == 0:
-                steps.append(f"已关联远端 origin: {args.remote}")
+            existing = run_git(["remote"], target)
+            remotes = (existing.stdout or "").split()
+            if "origin" in remotes:
+                steps.append("origin 远端已存在，跳过 remote add")
+            elif args.dry_run:
+                steps.append(f"将关联远端 origin: {args.remote}")
             else:
-                steps.append("远端关联失败: " + (r.stderr or "").strip())
+                r = run_git(["remote", "add", "origin", args.remote], target)
+                if r.returncode == 0:
+                    steps.append(f"已关联远端 origin: {args.remote}")
+                else:
+                    steps.append("远端关联失败: " + (r.stderr or "").strip())
+                    remote_failed = True
 
-    # ── 6. 首次提交（使用已确认的语种） ───────────────────────
+    # ── 6. 首次提交（仅包含本次创建的文件） ───────────────────
+    exit_code = 0
+    commit_created = False
     if args.no_commit:
         steps.append("按 --no-commit 要求，未创建首次提交")
     elif args.dry_run:
-        steps.append(f"将创建首次提交（commit 信息: {commit_msg}）")
-    else:
-        run_git(["add", "-A"], target)
-        status = run_git(["status", "--porcelain"], target)
-        if not (status.stdout or "").strip():
-            steps.append("没有需要提交的改动，跳过提交")
+        if pre_staged:
+            steps.append("将跳过首次提交（已有暂存改动）")
+        elif not created:
+            steps.append("没有需要提交的新文件，将跳过首次提交")
+        elif commit_msg is None:
+            steps.append("将无法创建首次提交（缺少 --commit-msg）")
         else:
-            r = run_git(["commit", "-m", commit_msg], target)
-            if r.returncode != 0:
-                run_git(["config", "user.name", "Stable Delivery Workflow"], target)
-                run_git(["config", "user.email", "stable-delivery@local"], target)
-                steps.append("检测到未配置 git 身份，已为本仓库设置占位身份（可用 git config 修改）")
-                r = run_git(["commit", "-m", commit_msg], target)
-            if r.returncode == 0:
-                rev = run_git(["rev-parse", "--short", "HEAD"], target)
-                steps.append(f"已创建首次提交: {(rev.stdout or '').strip()}（{commit_msg}）")
+            steps.append(f"将创建首次提交（仅包含本次创建的文件；commit 信息: {commit_msg}）")
+    elif pre_staged:
+        steps.append("已有暂存改动，跳过自动提交；本次创建的文件保持未跟踪状态，请手动处理")
+    elif not created:
+        steps.append("没有需要提交的新文件，跳过提交")
+    elif commit_msg is None:
+        steps.append("缺少首次提交信息，跳过提交")
+        exit_code = 1
+    else:
+        r_add = run_git(["add", "--", *created], target)
+        if r_add.returncode != 0:
+            steps.append("暂存失败（可能被 .gitignore 忽略）: " + (r_add.stderr or r_add.stdout or "").strip())
+            exit_code = 1
+        else:
+            staged = run_git(["diff", "--cached", "--name-only"], target)
+            staged_files = [ln.strip() for ln in (staged.stdout or "").splitlines() if ln.strip()]
+            unexpected = sorted(set(staged_files) - set(created))
+            if unexpected:
+                steps.append("检测到意外暂存的已有改动，跳过提交易免受污染: " + "、".join(unexpected[:5]))
+                exit_code = 1
             else:
-                steps.append("提交失败（可稍后手动提交）: " + (r.stderr or r.stdout or "").strip())
+                r = run_git(["commit", "-m", commit_msg], target)
+                if r.returncode != 0:
+                    err = (r.stderr or "") + "\n" + (r.stdout or "")
+                    if is_identity_error(err):
+                        changed = ensure_local_identity(target)
+                        if changed:
+                            steps.append("检测到未配置 git 身份，已补充仓库本地占位身份: " + "、".join(changed))
+                        r = run_git(["commit", "-m", commit_msg], target)
+                    if r.returncode == 0:
+                        rev = run_git(["rev-parse", "--short", "HEAD"], target)
+                        steps.append(f"已创建首次提交: {(rev.stdout or '').strip()}（{commit_msg}）")
+                        commit_created = True
+                    else:
+                        steps.append("提交失败（文件已暂存，可排查后手动提交）: " + (r.stderr or r.stdout or "").strip())
+                        exit_code = 1
+                else:
+                    rev = run_git(["rev-parse", "--short", "HEAD"], target)
+                    steps.append(f"已创建首次提交: {(rev.stdout or '').strip()}（{commit_msg}）")
+                    commit_created = True
+    if remote_failed:
+        exit_code = 1
 
     # ── 输出摘要 ─────────────────────────────────────────────
     print("=" * 56)
     if args.dry_run:
         print(f"【演练模式】初始化将按以下步骤执行 · {project_name}（未写入任何文件）")
-    else:
+    elif commit_created:
         print(f"AI 编程项目初始化完成 · {project_name}")
+    else:
+        print(f"AI 编程项目初始化完成（未创建首次提交）· {project_name}")
     print("=" * 56)
     for s in steps:
         print("  · " + s)
@@ -569,7 +737,7 @@ def main() -> int:
     if args.dry_run:
         print()
         print("演练完成：未做任何修改；去掉 --dry-run 即实际执行。")
-    return 0
+    return exit_code
 
 
 if __name__ == "__main__":
