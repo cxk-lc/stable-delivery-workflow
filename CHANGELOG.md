@@ -5,8 +5,12 @@
 
 ## [Unreleased]
 
+### Added
+- 新增 `scripts/build_release_zip.py`：发布包固定排除 `.gitignore`、`.git/`、`.github/` 与缓存；新增 B1 回归测试（共 25 个）
+
 ### Changed
 - 固定 Release 命名：附件统一为 `stable-delivery-workflow.zip`，Release 标题统一为 `stable-delivery-workflow-vX.Y.Z`
+- 发布附件固定不含 `.gitignore`
 
 ## [v1.4.0] - 2026-10-20
 

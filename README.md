@@ -31,7 +31,8 @@ stable-delivery-workflow/
 │   ├── init_project.py              # 项目初始化脚本（目录 + Git + AGENTS.md + docs 三份骨架 + 仅提交本次创建文件）
 │   ├── check_project.py             # DoD 可执行校验器（护栏信号自查）
 │   ├── lint_references.py           # 引用 / 占位符 / frontmatter lint（维护者发布前检查）
-│   └── tests/                       # 脚本回归测试（T1-T13 / C1-C6 / L1-L5）
+│   ├── build_release_zip.py         # 发布包构建：固定排除 .gitignore / .git / .github / 缓存
+│   └── tests/                       # 脚本回归测试（T1-T13 / B1 / C1-C6 / L1-L5）
 ├── references/
 │   ├── methodology.md               # 完整方法论：阶段详解 / 通用原则 / 风险全表
 │   ├── prompt-templates.md          # 各阶段提示词模板（C-1 ~ C-7，可直接粘贴给编程代理）
@@ -113,7 +114,8 @@ python scripts/init_project.py ./my-app --name "我的应用"
 
 ```bash
 python scripts/lint_references.py                 # 路径 / 占位符 / frontmatter 检查
-python -m unittest discover -s scripts/tests -v   # 24 个回归测试（T/C/L）
+python -m unittest discover -s scripts/tests -v   # 25 个回归测试（T/B/C/L）
+python scripts/build_release_zip.py --output stable-delivery-workflow.zip
 ```
 
 版本语义：**patch** = 勘误 / 死链 / 措辞修复；**minor** = 能力新增；**major** = 阶段模型或护栏规则变更。
@@ -128,9 +130,12 @@ python -m unittest discover -s scripts/tests -v   # 24 个回归测试（T/C/L�
 
 附件内顶层目录固定为 `<包名>/`（如 `stable-delivery-workflow/`），确保 Cursor 等要求“目录名与 `name` 一致”的工具可以直接使用。
 
-发布纪律：`lint + 测试 → 更新 CHANGELOG → 升版本号 → 打 annotated tag → gh release create`；变更记录见 [CHANGELOG.md](CHANGELOG.md)。
+**附件固定不包含 `.gitignore`**（以及 `.git/`、`.github/`、`__pycache__/` 等缓存）；请用 `scripts/build_release_zip.py` 生成，避免手工打包带入。
+
+发布纪律：`lint + 测试 → 更新 CHANGELOG → 升版本号 → 打 annotated tag → build_release_zip → gh release create`；变更记录见 [CHANGELOG.md](CHANGELOG.md)。
 
 ```bash
+python scripts/build_release_zip.py --output stable-delivery-workflow.zip
 gh release create vX.Y.Z stable-delivery-workflow.zip \
   --title "stable-delivery-workflow-vX.Y.Z" --verify-tag
 ```
