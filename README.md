@@ -118,7 +118,22 @@ python -m unittest discover -s scripts/tests -v   # 24 个回归测试（T/C/L�
 
 版本语义：**patch** = 勘误 / 死链 / 措辞修复；**minor** = 能力新增；**major** = 阶段模型或护栏规则变更。
 
-发布纪律：`lint + 测试 → 更新 CHANGELOG → 升版本号 → 打 annotated tag`；变更记录见 [CHANGELOG.md](CHANGELOG.md)。
+### 发布命名约定（固定）
+
+| 对象 | 规则 | 示例 |
+|---|---|---|
+| Release 标题 | `<包名>-v<版本>` | `stable-delivery-workflow-v1.4.0` |
+| Release 附件 | 固定 `<包名>.zip` | `stable-delivery-workflow.zip` |
+| Git tag | `v<版本>` | `v1.4.0` |
+
+附件内顶层目录固定为 `<包名>/`（如 `stable-delivery-workflow/`），确保 Cursor 等要求“目录名与 `name` 一致”的工具可以直接使用。
+
+发布纪律：`lint + 测试 → 更新 CHANGELOG → 升版本号 → 打 annotated tag → gh release create`；变更记录见 [CHANGELOG.md](CHANGELOG.md)。
+
+```bash
+gh release create vX.Y.Z stable-delivery-workflow.zip \
+  --title "stable-delivery-workflow-vX.Y.Z" --verify-tag
+```
 
 ## 版本
 

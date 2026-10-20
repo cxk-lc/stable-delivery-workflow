@@ -3,6 +3,11 @@
 本项目遵循 Keep a Changelog 精简风格；版本语义见 README「维护者指引」：
 **patch** = 勘误 / 死链 / 措辞修复；**minor** = 能力新增；**major** = 阶段模型或护栏规则变更。
 
+## [Unreleased]
+
+### Changed
+- 固定 Release 命名：附件统一为 `stable-delivery-workflow.zip`，Release 标题统一为 `stable-delivery-workflow-vX.Y.Z`
+
 ## [v1.4.0] - 2026-10-20
 
 ### Fixed
