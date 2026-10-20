@@ -16,20 +16,22 @@
 
 - **五阶段闭环**：环境搭建 → 产品设计 → 技术设计 → 产品实现 → 人工验证
 - **三重护栏（不可裁剪）**：Git 版本管理、代理自测能力、人工验证
-- **开箱即用的工具**：项目初始化脚本 + 4 类文档模板 + 7 个提示词模板 + 风险诊断手册
+- **开箱即用的工具**：项目初始化脚本 + 7 份文档模板 + 7 个提示词模板 + 风险诊断手册
 - **按需伸缩**：简单需求走精简路径，复杂需求走完整流程
 - **commit 语种可配置**：首次提交前确认；未手动指定时默认采用用户当前系统语言（自动检测，检测失败回退简体中文）
+- **存量仓库安全**：初始化只提交本次创建的文件；已有暂存改动时跳过自动提交，不把 WIP / 未跟踪文件卷进首提
 
 ## 目录结构
 
 ```
 stable-delivery-workflow/
 ├── SKILL.md                         # 技能主文件：五阶段工作流与执行指令
+├── .github/workflows/ci.yml         # CI：lint + 回归测试（Linux / Windows）
 ├── scripts/
-│   ├── init_project.py              # 项目初始化脚本（目录 + Git + AGENTS.md + docs 三份骨架 + 首次提交）
+│   ├── init_project.py              # 项目初始化脚本（目录 + Git + AGENTS.md + docs 三份骨架 + 仅提交本次创建文件）
 │   ├── check_project.py             # DoD 可执行校验器（护栏信号自查）
-│   ├── lint_references.py           # 引用完整性 lint（维护者发布前检查）
-│   └── tests/                       # 脚本回归测试（T1/T2；v1.3.0 扩展至 T1-T7）
+│   ├── lint_references.py           # 引用 / 占位符 / frontmatter lint（维护者发布前检查）
+│   └── tests/                       # 脚本回归测试（T1-T13 / C1-C6 / L1-L5）
 ├── references/
 │   ├── methodology.md               # 完整方法论：阶段详解 / 通用原则 / 风险全表
 │   ├── prompt-templates.md          # 各阶段提示词模板（C-1 ~ C-7，可直接粘贴给编程代理）
@@ -41,7 +43,8 @@ stable-delivery-workflow/
     ├── tech-design-template.md      # 技术方案文档模板
     ├── acceptance-checklist.md      # 人工验收清单模板
     ├── issue-report-template.md     # 问题反馈单模板（C-7 完整版）
-    └── release-record-template.md   # 发布记录模板（阶段五·发布）
+    ├── release-record-template.md   # 发布记录模板（阶段五·发布）
+    └── self-test-report-template.md # 自测报告模板（阶段四证据归档）
 ```
 
 ## 快速开始
@@ -69,27 +72,28 @@ stable-delivery-workflow/
 
 ### 方式二：直接使用初始化脚本
 
-不安装技能，也可以用它一键搭好项目环境：
+不安装技能，也可以用它一键搭好项目环境（前置依赖：Python 3.9+、Git；脚本只用标准库）：
 
 ```bash
 python scripts/init_project.py ./my-app --name "我的应用"
 ```
 
-脚本自动完成：创建目录 → `git init`（main 分支）→ 写入 AGENTS.md（交付硬规则）→ 创建 docs/ 三份骨架（产品设计 / 技术方案 / 验收清单）→ 写入 .gitignore → 首次提交。
+脚本自动完成：创建目录 → `git init`（main 分支）→ 写入 AGENTS.md（交付硬规则）→ 创建 docs/ 三份骨架（产品设计 / 技术方案 / 验收清单）→ 写入 .gitignore → **仅提交本次创建的文件**。在已有仓库上运行时，不会覆盖已有文件、不会重复 init，也不会把已有未提交改动卷进首提；若检测到已有暂存改动，会跳过自动提交并提示手动处理。
 
-初始化后可运行 `python scripts/check_project.py <项目目录>` 自查护栏信号（G1-G3 / A1 / D1 / V1）。
+初始化后可运行 `python scripts/check_project.py <项目目录>` 自查护栏信号（G1-G3 / A1 / D1 / V1 / A2 / V2；A2、V2 在对应阶段才纳入检查）。
 
 常用参数：
 
 | 参数 | 说明 |
 |---|---|
 | `--name` | 项目名称（默认取目录名） |
-| `--commit-lang` | commit 信息语种（未指定时默认跟随用户当前系统语言，脚本自动检测；交互终端下会提示输入，回车采用默认值） |
-| `--commit-msg` | 自定义首次提交信息（用于非中文语种） |
+| `--commit-lang` | commit 信息语种（未指定时默认跟随用户当前系统语言，脚本自动检测；交互终端下会提示输入，回车采用默认值；支持 locale 代码如 `en-GB` / `zh-TW`） |
+| `--commit-msg` | 自定义首次提交信息（用于 English / 简体中文 / 繁體中文之外的语种，或自定义文案） |
 | `--remote` | 关联远端仓库 URL（git remote add origin） |
 | `--no-commit` | 只搭建环境，不创建首次提交 |
+| `--dry-run` | 只演练不落盘，输出将执行的步骤 |
 
-> **commit 语种规则**：优先采用用户手动指定的语种（`--commit-lang` 或交互输入）；**仅当用户未手动指定时**，默认值生效——默认值为「用户当前系统所使用的语言」，由脚本自动检测（判断依据：Windows 取系统 UI 语言；macOS / Linux 取 `LANG`、`LC_ALL`、`LC_MESSAGES` 环境变量），检测失败回退简体中文。
+> **commit 语种规则**：优先采用用户手动指定的语种（`--commit-lang` 或交互输入）；**仅当用户未手动指定时**，默认值生效——默认值为「用户当前系统所使用的语言」，由脚本自动检测（判断依据：Windows 取系统 UI 语言；macOS / Linux 取 `LANG`、`LC_ALL`、`LC_MESSAGES` 环境变量），检测失败回退简体中文。内置首次提交模板支持 English / 简体中文 / 繁體中文；其他语种请加 `--commit-msg`，或先用 `--no-commit` 搭环境后手动提交。
 
 ## 五阶段一览
 
@@ -105,20 +109,20 @@ python scripts/init_project.py ./my-app --name "我的应用"
 
 ## 维护者指引
 
-发布前运行两项检查（均为标准库实现，零依赖）：
+发布前运行两项检查（均为标准库实现，零依赖；CI 也会跑）：
 
 ```bash
-python scripts/lint_references.py                 # 引用 / 占位符完整性
-python -m unittest discover -s scripts/tests -v   # 脚本回归测试
+python scripts/lint_references.py                 # 路径 / 占位符 / frontmatter 检查
+python -m unittest discover -s scripts/tests -v   # 24 个回归测试（T/C/L）
 ```
 
 版本语义：**patch** = 勘误 / 死链 / 措辞修复；**minor** = 能力新增；**major** = 阶段模型或护栏规则变更。
 
-发布纪律：`lint + 测试 → 更新 CHANGELOG → 升版本号 → 打 tag`；变更记录见 [CHANGELOG.md](CHANGELOG.md)。
+发布纪律：`lint + 测试 → 更新 CHANGELOG → 升版本号 → 打 annotated tag`；变更记录见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 版本
 
-当前版本：**v1.3.0**
+当前版本：**v1.4.0**
 
 ## 来源与致谢
 

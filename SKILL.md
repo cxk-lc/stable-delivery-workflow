@@ -2,6 +2,8 @@
 name: stable-delivery-workflow
 description: 【稳定交付工作流】用五阶段闭环（环境搭建 → 产品设计 → 技术设计 → 产品实现 → 人工验证）驱动 Codex / Claude Code / Cursor 等 AI 编程工具稳定交付高质量产品。当用户要启动新的 AI 辅助开发项目、为新项目搭建 Git + AGENTS.md 环境、编写产品设计 / 技术方案文档、生成验收清单，或反馈「AI 产出不符合预期 / 改坏功能 / 跑不起来 / 越改越乱」等问题时使用。随附项目初始化脚本、文档模板与各阶段提示词模板。
 agent_created: true
+metadata:
+  version: "1.4.0"
 ---
 
 # 稳定交付工作流
@@ -29,8 +31,8 @@ agent_created: true
 
 ### 阶段一 · 环境搭建（一次性）
 
-**动作**：首次提交前确认 commit 语种（默认跟随系统语言，可 `--commit-lang` 指定）→ 运行 `python scripts/init_project.py <目录> --name "项目名"`（自动完成 Git / AGENTS.md / docs 三份骨架 / 首次提交）→ 确认 AI 工具可验证结果。
-**DoD**：`git status` 正常；AGENTS.md 含交付硬规则（commit / 测试 / 语种）；AI 可自测。详见 methodology 阶段一、`references/tooling-matrix.md`。
+**动作**：首次提交前确认 commit 语种（默认跟随系统语言，可 `--commit-lang` 指定；不支持自动生成首提的语种用 `--commit-msg`）→ 运行 `python scripts/init_project.py <目录> --name "项目名"`（自动完成 Git / AGENTS.md / docs 三份骨架 / 仅提交本次创建文件的首次提交）→ 确认 AI 工具可验证结果。
+**DoD**：`git status` 正常；AGENTS.md 含交付硬规则（commit / 测试 / 语种 / 密钥）；AI 可自测。详见 methodology 阶段一、`references/tooling-matrix.md`。
 
 ### 阶段二 · 产品设计（What）
 
@@ -44,13 +46,13 @@ agent_created: true
 
 ### 阶段四 · 产品实现
 
-**动作**：确认 AI 自测能力 → 新会话让实现 Agent 读双文档开工（C-6）→ 自测通过后人工冒烟 → 报错按现场原样反馈（C-7，模板 `assets/issue-report-template.md`）并复验。
-**DoD**：AI 自测通过 + 人工冒烟通过 + 每改动一个 commit。详见 methodology 阶段四。
+**动作**：确认 AI 自测能力 → 新会话让实现 Agent 先读 `AGENTS.md`，再读双文档开工（C-6）→ 自测通过后人工冒烟 → 报错按现场原样反馈（C-7，模板 `assets/issue-report-template.md`）并复验。
+**DoD**：AI 自测通过且提交证据（报告测试命令/结果/commit，模板 `assets/self-test-report-template.md`）+ 人工冒烟通过 + 每个可验证功能/修复一个 commit。详见 methodology 阶段四。
 
 ### 阶段五 · 人工验证
 
 **动作**：按项目内 `docs/acceptance-checklist.md`（缺失时复制 `assets/acceptance-checklist.md`）走查：主流程 → 边界 → 交互体验；反馈修复并回归；若源于"预期本身"，先改文档再重实现（规格修订回路）。
-**DoD**：验收清单通过，验收结论由人签字；若发布：tag + 发布记录归档。详见 methodology 阶段五。
+**DoD**：验收清单通过，验收结论由人签字；若发布：annotated tag（`git tag -a`）+ 发布记录归档。详见 methodology 阶段五。
 
 ## 输入 / 输出 / 关键约束
 
@@ -62,8 +64,9 @@ agent_created: true
 1. **三重护栏不可裁剪**：Git / AI 自测 / 人工验证；
 2. **决策不外包**：砍功能、选技术栈、验收结论由用户确认，AI 只提供建议；
 3. **文档是唯一接口**：规格变更必须回写文档，禁止绕过文档改实现；
-4. **每个改动一个 commit**：随时可回退；
-5. **AI 自测通过 ≠ 无 Bug**：验收必须由人完成。
+4. **每个可验证功能/修复一个 commit**：随时可回退；
+5. **AI 自测通过 ≠ 无 Bug**：验收必须由人完成；
+6. **不提交密钥与敏感数据**：不提交 `.env`、密钥、客户数据；配置示例写入 `.env.example`。
 
 ## 使用方式
 
@@ -86,7 +89,7 @@ agent_created: true
 | 风险诊断手册 | `references/risk-playbook.md` | 症状 → 根因 → 动作 |
 | 验证工具矩阵 | `references/tooling-matrix.md` | 工具自测配置（阶段一 DoD） |
 | 脚本 | `scripts/`：init_project / check_project / lint_references | 初始化 / 取证 / 发布检查 |
-| 模板（唯一权威源） | `assets/`：AGENTS / 产品设计 / 技术方案 / 验收清单 / 问题反馈 / 发布记录 | 生成时 |
+| 模板（唯一权威源） | `assets/`：AGENTS / 产品设计 / 技术方案 / 验收清单 / 问题反馈 / 发布记录 / 自测报告 | 生成时 |
 
 ## 注意事项
 
