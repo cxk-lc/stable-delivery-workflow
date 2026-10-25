@@ -17,10 +17,11 @@
 
 提示项（ℹ，不计入通过率）:
     C1  提交粒度   最近 N 次提交的文件数分布（>15 个文件视为「一锅烩」信号）
+    V3  发布（可选）发布是阶段五的可选子流程：只提示当前状态，绝不参与通过率与退出码
     A2/V2 未到对应阶段时以提示项出现，不参与通过率
 
 退出码: 存在 ✗ 时返回 1，否则返回 0。
-边界: 本脚本只提供「信号」，通过 ≠ 满足验收——人工验证不可省。
+边界: 本脚本只提供「信号」，通过 ≠ 满足验收——人工验证不可省；跳过发布同样不算未完成。
 """
 import argparse
 import re
@@ -75,6 +76,15 @@ def acceptance_conclusion(text: str) -> tuple:
     m = re.search(r"^\s*-\s*验收人[^\n:：]*[:：]\s*(.*)$", text, re.M)
     reviewer = m.group(1).strip() if m else ""
     return conclusion, reviewer
+
+
+def release_choice(text: str) -> str:
+    """读取验收清单中「是否发布」的选择；未填写时返回空串（跳过发布是合法状态）。"""
+    m = re.search(r"^\s*-\s*是否发布[^\n:：]*[:：]\s*(.*)$", text, re.M)
+    value = m.group(1).strip() if m else ""
+    if value in {"立即发布 / 仅本地留痕（打 tag 不推送）/ 跳过", "立即发布/仅本地留痕/跳过"}:
+        return ""
+    return value
 
 
 def main() -> int:
@@ -183,13 +193,22 @@ def main() -> int:
 
     # V2：验收开始后，结论与验收人必须落字
     acceptance = read_text(target / "docs" / "acceptance-checklist.md")
+    conclusion, reviewer = acceptance_conclusion(acceptance)
     if acceptance_progress(acceptance):
-        conclusion, reviewer = acceptance_conclusion(acceptance)
         v2_ok = bool(conclusion and reviewer)
         results.append(("V2", v2_ok, "验收结论：结论与验收人已填写",
                         "见 risk-playbook D11 → 完成验收清单并签署结论"))
     else:
         infos.append(("V2", "验收结论：验收尚未开始，暂不检查"))
+
+    # V3（仅提示，不计入通过率）：发布是阶段五的可选子流程，跳过不影响闭环
+    choice = release_choice(acceptance)
+    if (target / "docs" / "release-record.md").is_file():
+        infos.append(("V3", "发布（可选）：docs/release-record.md 已归档"))
+    elif choice:
+        infos.append(("V3", f"发布（可选）：验收清单记录「{choice}」——跳过不影响闭环"))
+    elif conclusion and reviewer:
+        infos.append(("V3", "发布（可选）：尚未记录「是否发布」——跳过不影响闭环（见 references/release-subflow.md）"))
 
     c1_info = ""
     if is_repo and commit_count > 0:

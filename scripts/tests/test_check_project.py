@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""check_project.py 回归测试（C1–C5）
+"""check_project.py 回归测试（C1–C7）
 
 运行方式（技能仓库根目录）:
     python -m unittest discover -s scripts/tests -v
@@ -12,6 +12,7 @@
     C4  英文 AGENTS.md：A1 仍能识别 commit/test/language
     C5  技术方案已填写但命令缺失：A2 失败
     C6  验收开始后：V2 纳入检查并通过
+    C7  发布为可选：只出提示项（V3），跳过不改变通过数与退出码
 """
 import subprocess
 import sys
@@ -143,6 +144,37 @@ class TestCheckProject(unittest.TestCase):
             commit_all(target)
             r = run_script(SCRIPT, target)
             self.assertIn("[✓] V2", r.stdout, msg=r.stdout + r.stderr)
+
+    def test_c7_release_is_optional_hint_only(self):
+        """C7 发布为可选：只出提示项，跳过不改变通过数与退出码。"""
+        with tempfile.TemporaryDirectory() as td:
+            target = Path(td) / "app"
+            init_project(target)
+            fill_docs(target)
+            checklist = target / "docs" / "acceptance-checklist.md"
+            text = checklist.read_text(encoding="utf-8")
+            text = text.replace("- [ ] 按文档中的运行命令可正常启动",
+                                "- [x] 按文档中的运行命令可正常启动")
+            text = text.replace("- 结论：通过 / 有条件通过 / 不通过", "- 结论：通过")
+            text = text.replace("- 验收人 / 日期：", "- 验收人 / 日期：测试者 / 2026-10-20")
+            text = text.replace("- 是否发布：立即发布 / 仅本地留痕（打 tag 不推送）/ 跳过",
+                                "- 是否发布：跳过")
+            checklist.write_text(text, encoding="utf-8")
+            commit_all(target)
+
+            skipped = run_script(SCRIPT, target)
+            self.assertEqual(skipped.returncode, 0, msg=skipped.stdout + skipped.stderr)
+            self.assertIn("[ℹ] V3", skipped.stdout)
+            self.assertIn("跳过不影响闭环", skipped.stdout)
+            self.assertIn("通过 8/8", skipped.stdout)  # 发布不参与通过率分母（7 项 + V2）
+
+            # 记录发布产物后，仍为提示项，不新增检查项
+            (target / "docs" / "release-record.md").write_text("# 发布记录\n", encoding="utf-8")
+            commit_all(target)
+            published = run_script(SCRIPT, target)
+            self.assertEqual(published.returncode, 0, msg=published.stdout + published.stderr)
+            self.assertIn("已归档", published.stdout)
+            self.assertIn("通过 8/8", published.stdout)
 
 
 if __name__ == "__main__":
