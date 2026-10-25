@@ -16,7 +16,8 @@
 
 - **五阶段闭环**：环境搭建 → 产品设计 → 技术设计 → 产品实现 → 人工验证
 - **三重护栏（不可裁剪）**：Git 版本管理、代理自测能力、人工验证
-- **开箱即用的工具**：项目初始化脚本 + 7 份文档模板 + 7 个提示词模板 + 风险诊断手册
+- **发布为可选子流程**：验收签署后询问一次是否发布；跳过不影响闭环（不记为未完成、不计入任何通过率）
+- **开箱即用的工具**：项目初始化脚本 + 7 份文档模板 + 8 个提示词模板 + 风险诊断手册
 - **按需伸缩**：简单需求走精简路径，复杂需求走完整流程
 - **commit 语种可配置**：首次提交前确认；未手动指定时默认采用用户当前系统语言（自动检测，检测失败回退简体中文）
 - **存量仓库安全**：初始化只提交本次创建的文件；已有暂存改动时跳过自动提交，不把 WIP / 未跟踪文件卷进首提
@@ -35,16 +36,17 @@ stable-delivery-workflow/
 │   └── tests/                       # 脚本回归测试（T1-T13 / B1 / C1-C6 / L1-L5）
 ├── references/
 │   ├── methodology.md               # 完整方法论：阶段详解 / 通用原则 / 风险全表
-│   ├── prompt-templates.md          # 各阶段提示词模板（C-1 ~ C-7，可直接粘贴给编程代理）
+│   ├── release-subflow.md           # 发布子流程（可选）：触发时机 / S0-S5 / 可选约束 CN1-CN9
+│   ├── prompt-templates.md          # 各阶段提示词模板（C-1 ~ C-8，可直接粘贴给编程代理）
 │   ├── risk-playbook.md             # 风险诊断手册：症状 → 根因 → 动作
 │   └── tooling-matrix.md            # 验证工具适配矩阵（能力 × 工具 + 能力齐备三问）
 └── assets/                          # 模板唯一权威源
     ├── AGENTS.template.md           # 项目值班手册模板（交付硬规则）
     ├── product-design-template.md   # 产品设计文档模板
     ├── tech-design-template.md      # 技术方案文档模板
-    ├── acceptance-checklist.md      # 人工验收清单模板
+    ├── acceptance-checklist.md      # 人工验收清单模板（含「是否发布」签署栏）
     ├── issue-report-template.md     # 问题反馈单模板（C-7 完整版）
-    ├── release-record-template.md   # 发布记录模板（阶段五·发布）
+    ├── release-record-template.md   # 发布记录模板（阶段五·发布子流程，可选）
     └── self-test-report-template.md # 自测报告模板（阶段四证据归档）
 ```
 
@@ -81,7 +83,7 @@ python scripts/init_project.py ./my-app --name "我的应用"
 
 脚本自动完成：创建目录 → `git init`（main 分支）→ 写入 AGENTS.md（交付硬规则）→ 创建 docs/ 三份骨架（产品设计 / 技术方案 / 验收清单）→ 写入 .gitignore → **仅提交本次创建的文件**。在已有仓库上运行时，不会覆盖已有文件、不会重复 init，也不会把已有未提交改动卷进首提；若检测到已有暂存改动，会跳过自动提交并提示手动处理。
 
-初始化后可运行 `python scripts/check_project.py <项目目录>` 自查护栏信号（G1-G3 / A1 / D1 / V1 / A2 / V2；A2、V2 在对应阶段才纳入检查）。
+初始化后可运行 `python scripts/check_project.py <项目目录>` 自查护栏信号（G1-G3 / A1 / D1 / V1 / A2 / V2；A2、V2 在对应阶段才纳入检查；发布状态以提示项 V3 呈现，不计入通过率）。
 
 常用参数：
 
@@ -104,7 +106,10 @@ python scripts/init_project.py ./my-app --name "我的应用"
 | ② 产品设计 | 砍到 MVP，写成文档 | 产品设计文档 |
 | ③ 技术设计 | 只锁定大方向 | 技术方案文档 |
 | ④ 产品实现 | 代理实现 + 自测 | 可运行版本 |
-| ⑤ 人工验证 | 亲自试用，人签验收 | 验收结论 |
+| ⑤ 人工验证 | 亲自试用，人签验收 | 验收结论（含「是否发布」的选择） |
+| ⑤·发布（可选） | 问一次要不要发布；发布只发不改码 | 版本标签 + 发布记录（仅当选择发布） |
+
+> **闭环判定只看 ⑤**：验收结论签字即闭环成立。⑤ 之后的发布是**可选子流程**——跳过则流程正常结束、不留发布产物；发布中途失败也不回退验收结论。触发时机、步骤（S0–S5）与可选约束（CN1–CN9）见 [`references/release-subflow.md`](references/release-subflow.md)。
 
 > 完整方法（阶段详解、通用原则、风险清单、执行清单）见 [`references/methodology.md`](references/methodology.md)。
 
@@ -114,7 +119,7 @@ python scripts/init_project.py ./my-app --name "我的应用"
 
 ```bash
 python scripts/lint_references.py                 # 路径 / 占位符 / frontmatter 检查
-python -m unittest discover -s scripts/tests -v   # 25 个回归测试（T/B/C/L）
+python -m unittest discover -s scripts/tests -v   # 26 个回归测试（T/B/C/L）
 python scripts/build_release_zip.py --output stable-delivery-workflow.zip
 ```
 
