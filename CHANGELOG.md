@@ -3,12 +3,22 @@
 本项目遵循 Keep a Changelog 精简风格；版本语义见 README「维护者指引」：
 **patch** = 勘误 / 死链 / 措辞修复；**minor** = 能力新增；**major** = 阶段模型或护栏规则变更。
 
-## [Unreleased]
+## [v1.4.5] - 2026-10-25
+
+> 本次为能力新增（minor 语义），版本号按维护者指定取 `v1.4.5`。
 
 ### Added
-- 新增 `scripts/build_release_zip.py`：发布包固定排除 `.gitignore`、`.git/`、`.github/` 与缓存；新增 B1 回归测试（共 25 个）
+- 新增 `references/release-subflow.md`：把阶段五的发布动作拆为**相对独立、用户可选**的子流程——触发时机（验收签署后的收口询问，前置条件 P1–P3）、与主流程的衔接（接口物 / 闭环判定 / 四条出口）、S0–S5 步骤、可选约束 CN1–CN9 与反模式
+- 新增提示词模板 C-8（发布前检查与版本号建议）
+- 新增 `scripts/build_release_zip.py`：发布包固定排除 `.gitignore`、`.git/`、`.github/` 与缓存；新增 B1 回归测试
+- `check_project.py` 新增提示项 V3（发布状态）：只提示，不计入通过率与退出码；新增 C7 回归测试（共 26 个）
+- `assets/acceptance-checklist.md` 新增「6. 发布（可选）」一节，签署「是否发布」的选择（同步 `init_project.py` 兜底常量，保持逐字一致）
 
 ### Changed
+- 阶段五拆为「5A 人工验证（闭环必需）」与「5B 发布子流程（可选 · 条件项）」；DoD 分为必需项 / 条件项——跳过发布同样闭环成立
+- `SKILL.md`：新增收口询问硬动作、关键约束第 7 条（发布可选且必须问一次）、资源索引补发布子流程、提示词索引升至 C-1 ~ C-8
+- methodology：重写阶段五，联动 1.2 / 3.1 衔接图、3.2 依赖表、3.3 回路说明、3.4 层级表、新风险 R12、5.5 实践、7.2 / 7.3 清单与附录 D 速查卡
+- `assets/release-record-template.md`：增补发布方式 / tag 指向 commit / 是否推送，并注明「跳过发布时本文件缺失属正常」
 - 固定 Release 命名：附件统一为 `stable-delivery-workflow.zip`，Release 标题统一为 `stable-delivery-workflow-vX.Y.Z`
 - 发布附件固定不含 `.gitignore`
 

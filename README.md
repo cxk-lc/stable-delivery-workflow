@@ -147,7 +147,7 @@ gh release create vX.Y.Z stable-delivery-workflow.zip \
 
 ## 版本
 
-当前版本：**v1.4.0**
+当前版本：**v1.4.5**
 
 ## 来源与致谢
 
