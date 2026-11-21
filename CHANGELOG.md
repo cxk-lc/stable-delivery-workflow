@@ -3,6 +3,33 @@
 本项目遵循 Keep a Changelog 精简风格；版本语义见 README「维护者指引」：
 **patch** = 勘误 / 死链 / 措辞修复；**minor** = 能力新增；**major** = 阶段模型或护栏规则变更。
 
+## [v1.5.0] - 2026-11-21
+
+> 本次为能力新增（minor 语义）：阶段四新增「开发进度交接记录」，支持独立调用与提交门禁。
+
+### Added
+- 新增 `scripts/handoff_record.py`：交接记录的唯一生成 / 校验入口，四个子命令 `init` / `update` / `check` / `install-hook`
+  - 场景判定（两级）：先分 `new-project`（新项目）与已有项目，已有项目再分 `existing-continue`（非新会话：上下文摘要 + 目录事实）与 `existing-new-session`（新会话：仅目录 + Git 历史），`auto` 自动判定
+  - 七节必填结构（已完成内容 / 变更范围 / 关键决策 / 未完成事项 / 风险或阻塞 / 下一步计划 / 关联设计文档）+ 显式空态约定
+  - `check` 校验 frontmatter、小节完整性与未填写占位；`--staged` 作为 pre-commit 门禁
+  - 提交门禁二选一：记录随本次提交更新，或 `--stamp` 写入一次性校验签（`.git/handoff-verified`，按 HEAD 失效）
+  - 钩子安全：不覆盖自定义 `pre-commit`，`--force` 备份后替换
+- 新增 `assets/handoff-record-template.md`：交接记录模板（唯一权威源，脚本内置逐字兜底）
+- 新增 `references/handoff-record.md`：场景判定 / 文档结构 / 阶段四接入 / 门禁机制 / 上下文摘要格式 / 反模式
+- 新增提示词模板 C-9（交接记录开工 / 续接 / 新会话）
+- `check_project.py` 新增 H1：阶段四起检查记录结构完整且与代码提交同步
+- `init_project.py`：AGENTS.md 新增第 4 条 commit 门禁；验收清单新增「交接记录已更新」交付物检查
+- 新增 `scripts/tests/test_handoff_record.py`（HR1–HR11），`test_check_project.py` 新增 C8
+
+### Changed
+- 场景判定明确为两级：**先分新项目 / 已有项目，已有项目再分非新会话 / 新会话**；「新会话」不再与「新项目」并列，新项目处在新会话时仍判为 `new-project`
+- **统一文档框架**：三种场景共用同一套模板与九节结构（七节必填 + 更新记录 + 交接提示），场景只决定取证来源；生成结果写入前统一走 `validate_text` 校验，缺节 / 空节 / 占位符 / 残留 AUTO 标记都会中止写入
+- `detect_mode` 不再以记录是否存在参与判定：重复执行 `init` 不会把新项目改判为已有项目
+- 阶段四动作与 DoD 纳入交接记录：开工建记录 → 每次 commit 前更新或校验 → DoD 要求记录与代码提交同步
+- SKILL.md / methodology / prompt-templates / risk-playbook（新增 R13 / D12）/ README 同步更新
+- `lint_references.py` R2 同时扫描 `handoff_record.py` 的占位符支持
+- 版本号升至 1.5.0，回归测试增至 38 个
+
 ## [v1.4.5] - 2026-10-25
 
 > 本次为能力新增（minor 语义），版本号按维护者指定取 `v1.4.5`。

@@ -8,7 +8,8 @@
 1. **每完成一个可验证的功能或修复后必须创建 Git commit**，保留可追踪的版本快照，便于随时回退。
 2. **每次改动后必须编写或更新相关测试**，并在交付前确保所有测试与验收全部通过。
 3. **所有 Git commit 信息统一使用{{COMMIT_LANG}}**（初始化时确认，如需变更请同步修改本文件）。
-4. **不提交密钥与敏感数据**：不要提交 `.env`、密钥、客户数据；配置示例写入 `.env.example`。
+4. **每次 commit 前必须更新或校验交接记录**（`docs/handoff-record.md`）：更新记录内容，或执行技能包中的 `scripts/handoff_record.py check . --stamp`；pre-commit 钩子会强制拦截未更新/未校验的提交。记录须覆盖七节：已完成内容 / 变更范围 / 关键决策 / 未完成事项 / 风险或阻塞 / 下一步计划 / 关联设计文档。
+5. **不提交密钥与敏感数据**：不要提交 `.env`、密钥、客户数据；配置示例写入 `.env.example`。
 
 ## 项目信息
 
@@ -17,7 +18,7 @@
 - 运行命令：（如 npm start，填写后更新）
 - 测试命令：（如 npm test，填写后更新）
 - 目录说明：
-  - `docs/`：产品设计文档（product-design.md）与技术方案文档（tech-design.md）
+  - `docs/`：产品设计文档（product-design.md）、技术方案文档（tech-design.md）、开发进度交接记录（handoff-record.md）
   - 其他目录：（按需补充）
 
 ## 边界约定

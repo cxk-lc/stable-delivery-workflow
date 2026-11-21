@@ -13,17 +13,19 @@
     D1  规格文档   docs 双文档存在且表格已填写（启发式）
     V1  验收清单   docs/acceptance-checklist.md 存在
     A2  自测命令   技术方案填写后，AGENTS.md 的运行/测试命令已填写
+    H1  交接记录   阶段四起：docs/handoff-record.md 结构完整且已同步到当前 commit
     V2  验收结论   验收开始后，验收结论与验收人已填写
 
 提示项（ℹ，不计入通过率）:
     C1  提交粒度   最近 N 次提交的文件数分布（>15 个文件视为「一锅烩」信号）
     V3  发布（可选）发布是阶段五的可选子流程：只提示当前状态，绝不参与通过率与退出码
-    A2/V2 未到对应阶段时以提示项出现，不参与通过率
+    A2/H1/V2 未到对应阶段时以提示项出现，不参与通过率
 
 退出码: 存在 ✗ 时返回 1，否则返回 0。
 边界: 本脚本只提供「信号」，通过 ≠ 满足验收——人工验证不可省；跳过发布同样不算未完成。
 """
 import argparse
+import importlib.util
 import re
 import subprocess
 import sys
@@ -85,6 +87,20 @@ def release_choice(text: str) -> str:
     if value in {"立即发布 / 仅本地留痕（打 tag 不推送）/ 跳过", "立即发布/仅本地留痕/跳过"}:
         return ""
     return value
+
+
+def load_handoff_validator():
+    """复用 handoff_record.py 的结构校验逻辑；文件缺失时返回 None。"""
+    path = Path(__file__).with_name("handoff_record.py")
+    if not path.is_file():
+        return None
+    try:
+        spec = importlib.util.spec_from_file_location("handoff_record_validator", path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+    except Exception:
+        return None
 
 
 def main() -> int:
@@ -190,6 +206,42 @@ def main() -> int:
                         "见 risk-playbook D4 → 在 AGENTS.md 填写运行/测试命令"))
     else:
         infos.append(("A2", "自测命令：技术方案尚未填写，暂不检查"))
+
+    # H1：阶段四起必须维护交接记录（结构完整 + 与代码提交同步）
+    record_rel = "docs/handoff-record.md"
+    record_path = target / record_rel
+    if tech_filled:
+        if not record_path.is_file():
+            results.append(("H1", False, "交接记录：docs/handoff-record.md 尚未创建",
+                            "见 references/handoff-record.md → 阶段四开工先运行 handoff_record.py init"))
+        else:
+            notes = []
+            validator = load_handoff_validator()
+            record_text = read_text(record_path)
+            if validator:
+                notes.extend(validator.validate_text(record_text))
+            elif not record_text.strip():
+                notes.append("记录为空")
+            if is_repo:
+                r = run_git(["log", "-1", "--format=%h", "--", record_rel], target)
+                rec_commit = (r.stdout or "").strip()
+                if not rec_commit:
+                    notes.append("记录尚未提交")
+                else:
+                    r = run_git(["rev-list", "--count", f"{rec_commit}..HEAD"], target)
+                    try:
+                        behind = int((r.stdout or "0").strip())
+                    except ValueError:
+                        behind = 0
+                    if behind > 0:
+                        notes.append(f"记录落后 {behind} 个提交")
+            note = f"（{'；'.join(notes[:3])}）" if notes else ""
+            desc = ("交接记录：结构完整且已同步到当前 commit" if not notes
+                    else "交接记录：结构 / 同步状态待处理" + note)
+            results.append(("H1", not notes, desc,
+                            "见 references/handoff-record.md → update 记录，或 check --stamp 校验"))
+    else:
+        infos.append(("H1", "交接记录：技术方案尚未填写（阶段四未开始），暂不检查"))
 
     # V2：验收开始后，结论与验收人必须落字
     acceptance = read_text(target / "docs" / "acceptance-checklist.md")

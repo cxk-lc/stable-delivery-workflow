@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""check_project.py 回归测试（C1–C7）
+"""check_project.py 回归测试（C1–C8）
 
 运行方式（技能仓库根目录）:
     python -m unittest discover -s scripts/tests -v
 
 用例:
-    C1  全新初始化：D1 未通过、A2/V2 以提示项出现
-    C2  填写文档/命令：A2 纳入检查并通过
+    C1  全新初始化：D1 未通过、A2/H1/V2 以提示项出现
+    C2  填写文档/命令/交接记录：A2 与 H1 纳入检查并通过
     C3  已跟踪文件有未提交改动：G3 失败
     C4  英文 AGENTS.md：A1 仍能识别 commit/test/language
     C5  技术方案已填写但命令缺失：A2 失败
     C6  验收开始后：V2 纳入检查并通过
     C7  发布为可选：只出提示项（V3），跳过不改变通过数与退出码
+    C8  交接记录缺失：H1 失败；补齐并提交后通过（阶段四门禁）
 """
 import subprocess
 import sys
@@ -22,6 +23,7 @@ from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parents[1] / "check_project.py"
 INIT = Path(__file__).resolve().parents[1] / "init_project.py"
+HANDOFF = Path(__file__).resolve().parents[1] / "handoff_record.py"
 
 
 def run_script(script: Path, target: Path, *extra: str) -> subprocess.CompletedProcess:
@@ -63,9 +65,18 @@ def fill_docs(target: Path, commands: bool = True) -> None:
         agents.write_text(text, encoding="utf-8")
 
 
+def make_handoff(target: Path) -> None:
+    r = subprocess.run(
+        [sys.executable, str(HANDOFF), "init", str(target), "--mode", "new-project", "--no-hook"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120,
+    )
+    if r.returncode != 0:
+        raise AssertionError(r.stdout + r.stderr)
+
+
 class TestCheckProject(unittest.TestCase):
     def test_c1_fresh_project(self):
-        """C1 全新初始化：D1 未通过，A2/V2 以提示项出现。"""
+        """C1 全新初始化：D1 未通过，A2/H1/V2 以提示项出现。"""
         with tempfile.TemporaryDirectory() as td:
             target = Path(td) / "app"
             init_project(target)
@@ -73,20 +84,23 @@ class TestCheckProject(unittest.TestCase):
             self.assertEqual(r.returncode, 1, msg=r.stdout + r.stderr)
             self.assertIn("[✗] D1", r.stdout)
             self.assertIn("[ℹ] A2", r.stdout)
+            self.assertIn("[ℹ] H1", r.stdout)
             self.assertIn("[ℹ] V2", r.stdout)
             self.assertIn("刚初始化的项目 D1 未通过属预期", r.stdout)
 
-    def test_c2_filled_docs_enable_a2(self):
-        """C2 填写文档与命令：A2 纳入检查并通过。"""
+    def test_c2_filled_docs_enable_a2_and_h1(self):
+        """C2 填写文档与命令、建立交接记录：A2 与 H1 纳入检查并通过。"""
         with tempfile.TemporaryDirectory() as td:
             target = Path(td) / "app"
             init_project(target)
             fill_docs(target)
+            make_handoff(target)
             commit_all(target)
             r = run_script(SCRIPT, target)
             self.assertEqual(r.returncode, 0, msg=r.stdout + r.stderr)
             self.assertIn("[✓] A2", r.stdout)
-            self.assertIn("通过 7/7", r.stdout)
+            self.assertIn("[✓] H1", r.stdout)
+            self.assertIn("通过 8/8", r.stdout)
 
     def test_c3_dirty_tracked_file_fails_g3(self):
         """C3 已跟踪文件有未提交改动：G3 失败。"""
@@ -124,6 +138,7 @@ class TestCheckProject(unittest.TestCase):
             target = Path(td) / "app"
             init_project(target)
             fill_docs(target, commands=False)
+            make_handoff(target)
             commit_all(target)
             r = run_script(SCRIPT, target)
             self.assertEqual(r.returncode, 1, msg=r.stdout + r.stderr)
@@ -151,6 +166,7 @@ class TestCheckProject(unittest.TestCase):
             target = Path(td) / "app"
             init_project(target)
             fill_docs(target)
+            make_handoff(target)
             checklist = target / "docs" / "acceptance-checklist.md"
             text = checklist.read_text(encoding="utf-8")
             text = text.replace("- [ ] 按文档中的运行命令可正常启动",
@@ -166,15 +182,34 @@ class TestCheckProject(unittest.TestCase):
             self.assertEqual(skipped.returncode, 0, msg=skipped.stdout + skipped.stderr)
             self.assertIn("[ℹ] V3", skipped.stdout)
             self.assertIn("跳过不影响闭环", skipped.stdout)
-            self.assertIn("通过 8/8", skipped.stdout)  # 发布不参与通过率分母（7 项 + V2）
+            self.assertIn("通过 9/9", skipped.stdout)  # 发布不参与通过率分母（8 项 + V2）
 
             # 记录发布产物后，仍为提示项，不新增检查项
             (target / "docs" / "release-record.md").write_text("# 发布记录\n", encoding="utf-8")
+            make_handoff(target)
             commit_all(target)
             published = run_script(SCRIPT, target)
             self.assertEqual(published.returncode, 0, msg=published.stdout + published.stderr)
             self.assertIn("已归档", published.stdout)
-            self.assertIn("通过 8/8", published.stdout)
+            self.assertIn("通过 9/9", published.stdout)
+
+    def test_c8_handoff_record_required_in_stage4(self):
+        """C8 交接记录缺失：H1 失败；补齐并提交后通过。"""
+        with tempfile.TemporaryDirectory() as td:
+            target = Path(td) / "app"
+            init_project(target)
+            fill_docs(target)
+            commit_all(target)
+            missing = run_script(SCRIPT, target)
+            self.assertEqual(missing.returncode, 1, msg=missing.stdout + missing.stderr)
+            self.assertIn("[✗] H1", missing.stdout)
+            self.assertIn("尚未创建", missing.stdout)
+
+            make_handoff(target)
+            commit_all(target)
+            ready = run_script(SCRIPT, target)
+            self.assertEqual(ready.returncode, 0, msg=ready.stdout + ready.stderr)
+            self.assertIn("[✓] H1", ready.stdout)
 
 
 if __name__ == "__main__":

@@ -24,6 +24,7 @@
 - [ ] 所有改动均有对应 Git commit
 - [ ] 测试全部通过（含 Agent 提交的证据）
 - [ ] 文档已同步更新（规格变化已回写）
+- [ ] 交接记录已更新至当前 commit（docs/handoff-record.md）
 
 ## 5. 验收结论
 

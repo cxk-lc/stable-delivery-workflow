@@ -60,9 +60,12 @@ def check_r1(files):
 
 
 def check_r2():
-    src = (ROOT / "scripts" / "init_project.py").read_text(encoding="utf-8")
-    supported = set(SUPPORTED.findall(src))
-    used = set(PLACEHOLDER.findall(src))
+    supported = set()
+    for name in ("init_project.py", "handoff_record.py"):
+        p = ROOT / "scripts" / name
+        if p.is_file():
+            supported.update(SUPPORTED.findall(p.read_text(encoding="utf-8")))
+    used = set()
     for sub in ("assets", "references"):
         d = ROOT / sub
         if not d.is_dir():

@@ -15,6 +15,7 @@
 ## 核心特性
 
 - **五阶段闭环**：环境搭建 → 产品设计 → 技术设计 → 产品实现 → 人工验证
+- **开发进度交接记录**：阶段四开工按两级场景（先分新项目 / 已有项目，已有项目再分非新会话 / 新会话）生成 `docs/handoff-record.md`；每次 commit 前必须更新或校验，pre-commit 钩子强制；也可独立调用生成交接文档
 - **三重护栏（不可裁剪）**：Git 版本管理、代理自测能力、人工验证
 - **发布为可选子流程**：验收签署后询问一次是否发布；跳过不影响闭环（不记为未完成、不计入任何通过率）
 - **开箱即用的工具**：项目初始化脚本 + 7 份文档模板 + 8 个提示词模板 + 风险诊断手册
@@ -30,12 +31,14 @@ stable-delivery-workflow/
 ├── .github/workflows/ci.yml         # CI：lint + 回归测试（Linux / Windows）
 ├── scripts/
 │   ├── init_project.py              # 项目初始化脚本（目录 + Git + AGENTS.md + docs 三份骨架 + 仅提交本次创建文件）
-│   ├── check_project.py             # DoD 可执行校验器（护栏信号自查）
+│   ├── handoff_record.py            # 交接记录：init / update / check / install-hook（阶段四与独立调用共用）
+│   ├── check_project.py             # DoD 可执行校验器（护栏信号自查，含交接记录 H1）
 │   ├── lint_references.py           # 引用 / 占位符 / frontmatter lint（维护者发布前检查）
 │   ├── build_release_zip.py         # 发布包构建：固定排除 .gitignore / .git / .github / 缓存
-│   └── tests/                       # 脚本回归测试（T1-T13 / B1 / C1-C6 / L1-L5）
+│   └── tests/                       # 脚本回归测试（T / B / C / H / L）
 ├── references/
 │   ├── methodology.md               # 完整方法论：阶段详解 / 通用原则 / 风险全表
+│   ├── handoff-record.md            # 交接记录规范：场景判定 / 七节结构 / 提交门禁
 │   ├── release-subflow.md           # 发布子流程（可选）：触发时机 / S0-S5 / 可选约束 CN1-CN9
 │   ├── prompt-templates.md          # 各阶段提示词模板（C-1 ~ C-8，可直接粘贴给编程代理）
 │   ├── risk-playbook.md             # 风险诊断手册：症状 → 根因 → 动作
@@ -47,7 +50,8 @@ stable-delivery-workflow/
     ├── acceptance-checklist.md      # 人工验收清单模板（含「是否发布」签署栏）
     ├── issue-report-template.md     # 问题反馈单模板（C-7 完整版）
     ├── release-record-template.md   # 发布记录模板（阶段五·发布子流程，可选）
-    └── self-test-report-template.md # 自测报告模板（阶段四证据归档）
+    ├── self-test-report-template.md # 自测报告模板（阶段四证据归档）
+    └── handoff-record-template.md   # 开发进度交接记录模板（七节 + 更新记录）
 ```
 
 ## 快速开始
@@ -83,7 +87,7 @@ python scripts/init_project.py ./my-app --name "我的应用"
 
 脚本自动完成：创建目录 → `git init`（main 分支）→ 写入 AGENTS.md（交付硬规则）→ 创建 docs/ 三份骨架（产品设计 / 技术方案 / 验收清单）→ 写入 .gitignore → **仅提交本次创建的文件**。在已有仓库上运行时，不会覆盖已有文件、不会重复 init，也不会把已有未提交改动卷进首提；若检测到已有暂存改动，会跳过自动提交并提示手动处理。
 
-初始化后可运行 `python scripts/check_project.py <项目目录>` 自查护栏信号（G1-G3 / A1 / D1 / V1 / A2 / V2；A2、V2 在对应阶段才纳入检查；发布状态以提示项 V3 呈现，不计入通过率）。
+初始化后可运行 `python scripts/check_project.py <项目目录>` 自查护栏信号（G1-G3 / A1 / D1 / V1 / A2 / H1 / V2；A2、H1、V2 在对应阶段才纳入检查；发布状态以提示项 V3 呈现，不计入通过率）。
 
 常用参数：
 
@@ -98,6 +102,27 @@ python scripts/init_project.py ./my-app --name "我的应用"
 
 > **commit 语种规则**：优先采用用户手动指定的语种（`--commit-lang` 或交互输入）；**仅当用户未手动指定时**，默认值生效——默认值为「用户当前系统所使用的语言」，由脚本自动检测（判断依据：Windows 取系统 UI 语言；macOS / Linux 取 `LANG`、`LC_ALL`、`LC_MESSAGES` 环境变量），检测失败回退简体中文。内置首次提交模板支持 English / 简体中文 / 繁體中文；其他语种请加 `--commit-msg`，或先用 `--no-commit` 搭环境后手动提交。
 
+## 开发进度交接记录（阶段四）
+
+阶段四开工第一件事是建立 `docs/handoff-record.md`；此后每次 commit 前必须更新或校验，pre-commit 钩子会强制拦截。场景判定分两级：**先判断是否新项目；已有项目再按当前会话状态分非新会话 / 新会话**（「新会话」不是与新项目并列的第三类）。
+
+| 层级 | 场景 | 判定条件 | 命令 |
+|---|---|---|---|
+| 第 1 级 | 新项目 | 无实现文件、提交 ≤ 1 | `python scripts/handoff_record.py init . --mode new-project` |
+| 第 2 级（已有项目） | 非新会话 | 保留了上文 | `python scripts/handoff_record.py update . --mode continue --context context.md` |
+| 第 2 级（已有项目） | 新会话 | 从零开始 | `python scripts/handoff_record.py update . --mode new-session` |
+
+三种场景共用同一套模板与九节结构（七节必填 + 更新记录 + 交接提示），场景只决定内容取证来源；脚本写入前统一走同一套结构校验。
+
+提交前二选一：
+
+```bash
+python scripts/handoff_record.py update .          # 更新记录（推荐：完成功能 / 改范围 / 新决策）
+python scripts/handoff_record.py check . --stamp   # 仅校验（纯技术性改动，不修改记录）
+```
+
+记录固定七节：已完成内容 / 变更范围 / 关键决策 / 未完成事项 / 风险或阻塞 / 下一步计划 / 关联设计文档。该功能也可脱离阶段四独立调用，仅生成交接文档。场景判定、门禁机制与反模式见 [`references/handoff-record.md`](references/handoff-record.md)。
+
 ## 五阶段一览
 
 | 阶段 | 一句话 | 产出 |
@@ -105,7 +130,7 @@ python scripts/init_project.py ./my-app --name "我的应用"
 | ① 环境搭建 | Git + AGENTS.md，一次性基座 | 受控项目环境 |
 | ② 产品设计 | 砍到 MVP，写成文档 | 产品设计文档 |
 | ③ 技术设计 | 只锁定大方向 | 技术方案文档 |
-| ④ 产品实现 | 代理实现 + 自测 | 可运行版本 |
+| ④ 产品实现 | 代理实现 + 自测 + 交接记录 | 可运行版本 + 交接记录 |
 | ⑤ 人工验证 | 亲自试用，人签验收 | 验收结论（含「是否发布」的选择） |
 | ⑤·发布（可选） | 问一次要不要发布；发布只发不改码 | 版本标签 + 发布记录（仅当选择发布） |
 
@@ -119,7 +144,7 @@ python scripts/init_project.py ./my-app --name "我的应用"
 
 ```bash
 python scripts/lint_references.py                 # 路径 / 占位符 / frontmatter 检查
-python -m unittest discover -s scripts/tests -v   # 26 个回归测试（T/B/C/L）
+python -m unittest discover -s scripts/tests -v   # 38 个回归测试（T/B/C/H/L）
 python scripts/build_release_zip.py --output stable-delivery-workflow.zip
 ```
 
@@ -147,7 +172,7 @@ gh release create vX.Y.Z stable-delivery-workflow.zip \
 
 ## 版本
 
-当前版本：**v1.4.5**
+当前版本：**v1.5.0**
 
 ## 来源与致谢
 

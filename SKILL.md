@@ -1,9 +1,9 @@
 ---
 name: stable-delivery-workflow
-description: 【稳定交付工作流】用五阶段闭环（环境搭建 → 产品设计 → 技术设计 → 产品实现 → 人工验证）驱动 Codex / Claude Code / Cursor 等 AI 编程工具稳定交付高质量产品。当用户要启动新的 AI 辅助开发项目、为新项目搭建 Git + AGENTS.md 环境、编写产品设计 / 技术方案文档、生成验收清单，反馈「AI 产出不符合预期 / 改坏功能 / 跑不起来 / 越改越乱」等问题，或在验收通过后询问「要不要发布 / 打版本标签 / 归档发布记录」时使用。发布是阶段五之后的可选子流程，跳过不影响闭环。随附项目初始化脚本、文档模板与各阶段提示词模板。
+description: 【稳定交付工作流】用五阶段闭环（环境搭建 → 产品设计 → 技术设计 → 产品实现 → 人工验证）驱动 Codex / Claude Code / Cursor 等 AI 编程工具稳定交付高质量产品。当用户要启动新的 AI 辅助开发项目、为新项目搭建 Git + AGENTS.md 环境、编写产品设计 / 技术方案文档、生成验收清单、跨会话接续开发、生成开发进度交接记录，反馈「AI 产出不符合预期 / 改坏功能 / 跑不起来 / 越改越乱」等问题，或在验收通过后询问「要不要发布 / 打版本标签 / 归档发布记录」时使用。阶段四开工即建立交接记录，每次 commit 前强制更新或校验；发布是阶段五之后的可选子流程，跳过不影响闭环。随附项目初始化脚本、交接记录脚本、文档模板与各阶段提示词模板。
 agent_created: true
 metadata:
-  version: "1.4.5"
+  version: "1.5.0"
 ---
 
 # 稳定交付工作流
@@ -24,6 +24,7 @@ metadata:
 | 开发新功能 | "给项目加一个 XX 功能" | 阶段二 产品设计 |
 | 流程诊断 | "AI 做的不对 / 改坏了 / 越改越乱" | references/risk-playbook.md |
 | 工程规范搭建 | "写 AGENTS.md / 设计文档 / 验收清单" | assets/ 模板 |
+| 跨会话交接 | "换个会话接着做 / 生成开发进度交接记录" | 阶段四 · 交接记录（`references/handoff-record.md`） |
 | 发布 / 打标签 / 归档发布记录 | "验收完了，要不要发布 / 打个 v1.2.0" | 阶段五 · 发布子流程（可选） |
 
 ## 核心步骤（五阶段闭环）
@@ -48,8 +49,8 @@ metadata:
 
 ### 阶段四 · 产品实现
 
-**动作**：确认 AI 自测能力 → 新会话让实现 Agent 先读 `AGENTS.md`，再读双文档开工（C-6）→ 自测通过后人工冒烟 → 报错按现场原样反馈（C-7，模板 `assets/issue-report-template.md`）并复验。
-**DoD**：AI 自测通过且提交证据（报告测试命令/结果/commit，模板 `assets/self-test-report-template.md`）+ 人工冒烟通过 + 每个可验证功能/修复一个 commit。详见 methodology 阶段四。
+**动作**：确认 AI 自测能力 → **按两级判定场景并建立交接记录**（三种场景共用同一套模板与九节结构，仅取证来源不同）：① **是否新项目**——是则 `handoff_record.py init --mode new-project`（基于双文档建框架）；② **否则为已有项目**，再看当前会话状态——**非新会话**（保留了上文）用 `update --mode continue --context <摘要文件>`（上下文 + 目录），**新会话**（从零开始）用 `update --mode new-session`（仅目录 + Git 历史）→ 让实现 Agent 先读 `docs/handoff-record.md` 与 `AGENTS.md`，再读双文档开工（C-6 / C-9）→ **每次 commit 前更新记录，或执行 `check --stamp` 校验**（pre-commit 钩子强制）→ 自测通过后人工冒烟 → 报错按现场原样反馈（C-7，模板 `assets/issue-report-template.md`）并复验。
+**DoD**：AI 自测通过且提交证据（报告测试命令/结果/commit，模板 `assets/self-test-report-template.md`）+ 人工冒烟通过 + 每个可验证功能/修复一个 commit + **交接记录七节齐全且与代码提交同步**（`handoff_record.py check` 与 `check_project.py` H1 通过）。详见 methodology 阶段四、`references/handoff-record.md`。
 
 ### 阶段五 · 人工验证（含可选发布子流程）
 
@@ -80,17 +81,20 @@ metadata:
 5. **AI 自测通过 ≠ 无 Bug**：验收必须由人完成；
 6. **不提交密钥与敏感数据**：不提交 `.env`、密钥、客户数据；配置示例写入 `.env.example`；
 7. **发布可选且必须问一次**：发布不是闭环必要条件，跳过不记为未完成、不计入任何通过率；但"要不要发布"这一问不可省略，且发布窗口内只发布不改码。
+8. **交接记录是跨会话唯一进度接口**：阶段四开工必须建立；场景判定为两级——先分新项目 / 已有项目，已有项目再分非新会话 / 新会话（判定规则见 `references/handoff-record.md`）；**三种场景共用同一套模板与九节结构，场景只决定取证来源**；每次 commit 前必须更新或校验，否则钩子拦截；记录与设计文档冲突时以设计文档为准，规格问题走修订回路。
 
 ## 使用方式
 
 - **A 一键初始化**：`init_project.py` 后按阶段推进（可先 `--dry-run` 预演）；
 - **B 分阶段引导**：单阶段会话，产出交付物并核对 DoD；
-- **C 问题诊断**：查 `references/risk-playbook.md` 症状表后补缺失环节（`scripts/check_project.py` 取证）。
+- **C 问题诊断**：查 `references/risk-playbook.md` 症状表后补缺失环节（`scripts/check_project.py` 取证）；
+- **D 单独生成交接文档**：`python scripts/handoff_record.py init|update <项目> [--mode …]`，不要求正在走阶段四；与阶段四流程共用同一套生成逻辑。
 
 ## 典型示例
 
 - **从零启动**："用 Codex 做记账 App" → 初始化 → 砍到 MVP → 文档 → 技术栈 → 实现 → 验收。
 - **老项目加功能**：查护栏 → 增量设计 → 技术方案 → 实现 → 验收。
+- **跨会话接续**（已有项目）：新会话用 `handoff_record.py update --mode new-session`（仅目录事实）→ 读记录与双文档 → 继续实现；若保留了上文（非新会话）则用 `--mode continue --context <摘要>`。
 - **验收后发布（可选）**："验收签了，打个 v1.2.0" → 收口询问确认 → 版本号判定 → 发布前检查 → tag + 发布记录 →（可选）推送；若答"先不发" → 直接闭环结束，不留发布产物。
 - **症状诊断**："AI 改完代码后登录坏了" → 查 risk-playbook → 建基线、补规则、重修复。
 
@@ -99,16 +103,18 @@ metadata:
 | 资源 | 路径 | 何时使用 |
 |---|---|---|
 | 方法论（权威） | `references/methodology.md` | 阶段细则 / 原则 / 风险 |
+| 交接记录规范 | `references/handoff-record.md` | 场景判定 / 七节结构 / 提交门禁 |
 | 发布子流程（可选） | `references/release-subflow.md` | 触发时机 / S0–S5 / 可选约束 CN1–CN9 |
-| 提示词模板 | `references/prompt-templates.md` | 下达指令（C-1 ~ C-8） |
+| 提示词模板 | `references/prompt-templates.md` | 下达指令（C-1 ~ C-9） |
 | 风险诊断手册 | `references/risk-playbook.md` | 症状 → 根因 → 动作 |
 | 验证工具矩阵 | `references/tooling-matrix.md` | 工具自测配置（阶段一 DoD） |
-| 脚本 | `scripts/`：init_project / check_project / lint_references | 初始化 / 取证 / 发布检查 |
-| 模板（唯一权威源） | `assets/`：AGENTS / 产品设计 / 技术方案 / 验收清单 / 问题反馈 / 发布记录 / 自测报告 | 生成时 |
+| 脚本 | `scripts/`：init_project / handoff_record / check_project / lint_references | 初始化 / 交接记录 / 取证 / 发布检查 |
+| 模板（唯一权威源） | `assets/`：AGENTS / 产品设计 / 技术方案 / 验收清单 / 问题反馈 / 发布记录 / 自测报告 / 交接记录 | 生成时 |
 
 ## 注意事项
 
 - AGENTS.md 保持精简（高频规则放入口），写成"百科全书"会失焦；
 - 反馈报错**原样描述现场**（步骤 + 报错原文），不转述、不推测；
 - 新主题新会话；共识落文档（跨会话记忆载体）；
+- 交接记录只写结论与状态：**新会话只依据目录与 Git 历史**，非新会话必须先落上下文摘要；不凭印象补写进度；
 - 发布环节严守三条：**只发布不改码**、**版本号由人确认**、**跳过不追问**。
