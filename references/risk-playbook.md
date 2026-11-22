@@ -18,6 +18,7 @@
 | D10 | "项目越做越臃肿，没法维护" | 放任 AI 自行设计功能与架构 | ② | 用"不做清单"和边界约定做硬约束；长期项目建议写 spec 硬规范（明确技术选型与需求范围） |
 | D11 | "交互体验很差 / 边界情况总出问题" | 验收盲区 | ⑤ | 按验收清单三件套走查：主流程 → 边界情况 → 交互体验；后端重的项目应前置 Demo 验证交互 |
 | D12 | "换个会话就接不上了" / "进度说不清" | 进度只存在对话里，未落文档 | ④ | 建立并维护 `docs/handoff-record.md`：新项目 `init --mode new-project`、已有项目的非新会话 `update --mode continue --context`、已有项目的新会话 `update --mode new-session`；每次 commit 前更新或 `check --stamp`（见 `references/handoff-record.md`） |
+| D13 | "做完了才发现文档里有个地方我不同意" | 文档未经用户核对就开工 | ③→④ | 回到文档审核闸门：逐项确认范围 / 决策 / 风险，修订后由用户明确放行再继续（见 `references/methodology.md` 阶段三→四） |
 
 ## 二、护栏缺失时的"三步补救"
 

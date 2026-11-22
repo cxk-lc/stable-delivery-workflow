@@ -76,6 +76,9 @@ class TestInitProject(unittest.TestCase):
             ):
                 self.assertTrue((target / rel).is_file(), msg=f"缺少骨架文件: {rel}")
             self.assertTrue((target / ".git").exists(), msg="未初始化 Git 仓库")
+            self.assertIn("文档审核（阶段三→四）",
+                          (target / "docs" / "tech-design.md").read_text(encoding="utf-8"),
+                          msg="技术方案缺少文档审核留痕小节")
             self.assertGreaterEqual(int(git_out(target, "rev-list", "--count", "HEAD") or 0), 1,
                                     msg="缺少首次提交")
 
